@@ -9,7 +9,7 @@ Handles:
 
 from datetime import datetime, timedelta
 from typing import Optional
-from square.client import Client
+from square import Square
 from app.config import settings, is_square_configured
 
 
@@ -18,10 +18,7 @@ class SquareAPI:
         if not is_square_configured():
             raise ValueError("Square API not configured. Set SQUARE_ACCESS_TOKEN in .env")
 
-        self.client = Client(
-            access_token=settings.square_access_token,
-            environment=settings.square_environment,
-        )
+        self.client = Square(token=settings.square_access_token)
         self._location_id = settings.square_location_id
         self._locations_cache = None
 
@@ -34,12 +31,12 @@ class SquareAPI:
         if self._locations_cache:
             return self._locations_cache
 
-        result = self.client.locations.list_locations()
-        if result.is_success():
-            self._locations_cache = [loc.to_dict() for loc in result.body.get("locations", [])]
-            return self._locations_cache
-        else:
+        result = self.client.locations.list()
+        if result.errors:
             raise Exception(f"Failed to get locations: {result.errors}")
+
+        self._locations_cache = [loc.model_dump() for loc in (result.locations or [])]
+        return self._locations_cache
 
     def get_location_id(self) -> str:
         """Get the configured location ID or the first available"""
@@ -59,21 +56,21 @@ class SquareAPI:
 
     def get_team_members(self) -> list[dict]:
         """Get all team members"""
-        result = self.client.team.search_team_members(
-            body={"query": {"filter": {"status": "ACTIVE"}}}
+        result = self.client.team_members.search(
+            query={"filter": {"status": "ACTIVE"}}
         )
-        if result.is_success():
-            return [tm.to_dict() for tm in result.body.get("team_members", [])]
-        else:
+        if result.errors:
             raise Exception(f"Failed to get team members: {result.errors}")
+
+        return [tm.model_dump() for tm in (result.team_members or [])]
 
     def get_jobs(self) -> list[dict]:
         """Get all job definitions (roles/positions)"""
-        result = self.client.labor.list_jobs()
-        if result.is_success():
-            return [job.to_dict() for job in result.body.get("jobs", [])]
-        else:
+        result = self.client.team.list_jobs()
+        if result.errors:
             raise Exception(f"Failed to get jobs: {result.errors}")
+
+        return [job.model_dump() for job in (result.jobs or [])]
 
     def get_timecards(
         self,
@@ -81,9 +78,7 @@ class SquareAPI:
         end_date: datetime,
         team_member_id: Optional[str] = None,
     ) -> list[dict]:
-        """
-        Get timecards (clock in/out records) for a date range
-        """
+        """Get timecards (clock in/out records) for a date range"""
         location_id = self.get_location_id()
 
         query = {
@@ -101,30 +96,22 @@ class SquareAPI:
         cursor = None
 
         while True:
-            body = {"query": query}
-            if cursor:
-                body["cursor"] = cursor
+            result = self.client.labor.search_timecards(query=query, cursor=cursor)
 
-            result = self.client.labor.search_timecards(body=body)
-
-            if result.is_success():
-                timecards = result.body.get("timecards", [])
-                all_timecards.extend([tc.to_dict() for tc in timecards])
-
-                cursor = result.body.get("cursor")
-                if not cursor:
-                    break
-            else:
+            if result.errors:
                 raise Exception(f"Failed to get timecards: {result.errors}")
+
+            timecards = result.timecards or []
+            all_timecards.extend([tc.model_dump() for tc in timecards])
+
+            cursor = result.cursor
+            if not cursor:
+                break
 
         return all_timecards
 
-    def get_labor_summary(
-        self, start_date: datetime, end_date: datetime
-    ) -> dict:
-        """
-        Get labor summary for staffing analysis
-        """
+    def get_labor_summary(self, start_date: datetime, end_date: datetime) -> dict:
+        """Get labor summary for staffing analysis"""
         timecards = self.get_timecards(start_date, end_date)
         team_members = {tm["id"]: tm for tm in self.get_team_members()}
         jobs = {job["id"]: job for job in self.get_jobs()}
@@ -142,7 +129,7 @@ class SquareAPI:
                 hours = (clock_out - clock_in).total_seconds() / 3600
 
                 # Subtract break time
-                for brk in tc.get("breaks", []):
+                for brk in tc.get("breaks", []) or []:
                     if brk.get("start_at") and brk.get("end_at"):
                         brk_start = datetime.fromisoformat(brk["start_at"].replace("Z", "+00:00"))
                         brk_end = datetime.fromisoformat(brk["end_at"].replace("Z", "+00:00"))
@@ -167,7 +154,7 @@ class SquareAPI:
                 # Calculate labor cost if wage info available
                 wage = tc.get("hourly_rate")
                 if wage:
-                    hourly_rate = wage.get("amount", 0) / 100  # Convert cents to dollars
+                    hourly_rate = wage.get("amount", 0) / 100
                     cost = hours * hourly_rate
                     total_labor_cost += cost
                     hours_by_employee[emp_name]["cost"] += cost
@@ -184,22 +171,12 @@ class SquareAPI:
                 "timecard_count": len(timecards),
             },
             "by_employee": {
-                name: {
-                    "hours": round(data["hours"], 2),
-                    "cost": round(data["cost"], 2),
-                }
-                for name, data in sorted(
-                    hours_by_employee.items(), key=lambda x: x[1]["hours"], reverse=True
-                )
+                name: {"hours": round(data["hours"], 2), "cost": round(data["cost"], 2)}
+                for name, data in sorted(hours_by_employee.items(), key=lambda x: x[1]["hours"], reverse=True)
             },
             "by_job": {
-                title: {
-                    "hours": round(data["hours"], 2),
-                    "cost": round(data["cost"], 2),
-                }
-                for title, data in sorted(
-                    hours_by_job.items(), key=lambda x: x[1]["hours"], reverse=True
-                )
+                title: {"hours": round(data["hours"], 2), "cost": round(data["cost"], 2)}
+                for title, data in sorted(hours_by_job.items(), key=lambda x: x[1]["hours"], reverse=True)
             },
         }
 
@@ -207,24 +184,17 @@ class SquareAPI:
     # ORDERS API - Sales & Product Mix
     # =========================================================================
 
-    def get_orders(
-        self,
-        start_date: datetime,
-        end_date: datetime,
-        limit: int = 500,
-    ) -> list[dict]:
-        """
-        Get orders for a date range
-        """
+    def get_orders(self, start_date: datetime, end_date: datetime, limit: int = 500) -> list[dict]:
+        """Get orders for a date range"""
         location_id = self.get_location_id()
 
         all_orders = []
         cursor = None
 
         while True:
-            body = {
-                "location_ids": [location_id],
-                "query": {
+            result = self.client.orders.search(
+                location_ids=[location_id],
+                query={
                     "filter": {
                         "date_time_filter": {
                             "created_at": {
@@ -236,60 +206,37 @@ class SquareAPI:
                     },
                     "sort": {"sort_field": "CREATED_AT", "sort_order": "DESC"},
                 },
-                "limit": min(limit, 500),
-            }
+                limit=min(limit, 500),
+                cursor=cursor,
+            )
 
-            if cursor:
-                body["cursor"] = cursor
-
-            result = self.client.orders.search_orders(body=body)
-
-            if result.is_success():
-                orders = result.body.get("orders", [])
-                all_orders.extend([order.to_dict() for order in orders])
-
-                cursor = result.body.get("cursor")
-                if not cursor or len(all_orders) >= limit:
-                    break
-            else:
+            if result.errors:
                 raise Exception(f"Failed to get orders: {result.errors}")
+
+            orders = result.orders or []
+            all_orders.extend([order.model_dump() for order in orders])
+
+            cursor = result.cursor
+            if not cursor or len(all_orders) >= limit:
+                break
 
         return all_orders[:limit]
 
     def get_catalog_items(self) -> dict[str, dict]:
-        """
-        Get all catalog items (menu items) as a lookup dict
-        """
+        """Get all catalog items (menu items) as a lookup dict"""
         all_items = {}
-        cursor = None
 
-        while True:
-            body = {"types": ["ITEM", "ITEM_VARIATION", "CATEGORY"]}
-            if cursor:
-                body["cursor"] = cursor
-
-            result = self.client.catalog.list_catalog(**body)
-
-            if result.is_success():
-                objects = result.body.get("objects", [])
-                for obj in objects:
-                    obj_dict = obj.to_dict()
-                    all_items[obj_dict["id"]] = obj_dict
-
-                cursor = result.body.get("cursor")
-                if not cursor:
-                    break
-            else:
-                raise Exception(f"Failed to get catalog: {result.errors}")
+        # The SDK returns a paginator, iterate over all items
+        for obj in self.client.catalog.list():
+            obj_dict = obj.model_dump()
+            # Only include items, variations, and categories
+            if obj_dict.get("type") in ("ITEM", "ITEM_VARIATION", "CATEGORY"):
+                all_items[obj_dict["id"]] = obj_dict
 
         return all_items
 
-    def get_product_mix(
-        self, start_date: datetime, end_date: datetime
-    ) -> dict:
-        """
-        Analyze product mix from orders
-        """
+    def get_product_mix(self, start_date: datetime, end_date: datetime) -> dict:
+        """Analyze product mix from orders"""
         orders = self.get_orders(start_date, end_date, limit=10000)
         catalog = self.get_catalog_items()
 
@@ -299,63 +246,45 @@ class SquareAPI:
         total_items_sold = 0
 
         for order in orders:
-            for line_item in order.get("line_items", []):
+            for line_item in order.get("line_items", []) or []:
                 item_name = line_item.get("name", "Unknown Item")
                 quantity = int(line_item.get("quantity", "1"))
 
-                # Get total money for this line item
-                total_money = line_item.get("total_money", {})
-                amount = total_money.get("amount", 0) / 100  # cents to dollars
+                total_money = line_item.get("total_money", {}) or {}
+                amount = total_money.get("amount", 0) / 100
 
                 total_revenue += amount
                 total_items_sold += quantity
 
-                # Track by item
                 if item_name not in item_sales:
-                    item_sales[item_name] = {
-                        "quantity": 0,
-                        "revenue": 0,
-                        "catalog_object_id": line_item.get("catalog_object_id"),
-                    }
+                    item_sales[item_name] = {"quantity": 0, "revenue": 0, "catalog_object_id": line_item.get("catalog_object_id")}
                 item_sales[item_name]["quantity"] += quantity
                 item_sales[item_name]["revenue"] += amount
 
                 # Try to get category from catalog
                 catalog_id = line_item.get("catalog_object_id")
+                cat_name = "Uncategorized"
                 if catalog_id and catalog_id in catalog:
                     cat_obj = catalog[catalog_id]
-                    # Get parent item to find category
                     if cat_obj.get("type") == "ITEM_VARIATION":
-                        item_data = cat_obj.get("item_variation_data", {})
+                        item_data = cat_obj.get("item_variation_data", {}) or {}
                         item_id = item_data.get("item_id")
                         if item_id and item_id in catalog:
                             parent_item = catalog[item_id]
-                            item_data = parent_item.get("item_data", {})
+                            item_data = parent_item.get("item_data", {}) or {}
                             cat_id = item_data.get("category_id")
                             if cat_id and cat_id in catalog:
-                                cat_name = catalog[cat_id].get("category_data", {}).get("name", "Uncategorized")
-                            else:
-                                cat_name = "Uncategorized"
-                        else:
-                            cat_name = "Uncategorized"
-                    else:
-                        cat_name = "Uncategorized"
-                else:
-                    cat_name = "Uncategorized"
+                                cat_name = (catalog[cat_id].get("category_data", {}) or {}).get("name", "Uncategorized")
 
                 if cat_name not in category_sales:
                     category_sales[cat_name] = {"quantity": 0, "revenue": 0}
                 category_sales[cat_name]["quantity"] += quantity
                 category_sales[cat_name]["revenue"] += amount
 
-        # Sort by revenue
-        sorted_items = sorted(
-            item_sales.items(), key=lambda x: x[1]["revenue"], reverse=True
-        )
+        sorted_items = sorted(item_sales.items(), key=lambda x: x[1]["revenue"], reverse=True)
 
-        # Calculate percentages and format
         items_with_pct = []
-        for name, data in sorted_items[:50]:  # Top 50 items
+        for name, data in sorted_items[:50]:
             items_with_pct.append({
                 "name": name,
                 "quantity": data["quantity"],
@@ -374,10 +303,7 @@ class SquareAPI:
             })
 
         return {
-            "period": {
-                "start": start_date.isoformat(),
-                "end": end_date.isoformat(),
-            },
+            "period": {"start": start_date.isoformat(), "end": end_date.isoformat()},
             "totals": {
                 "revenue": round(total_revenue, 2),
                 "items_sold": total_items_sold,
@@ -388,12 +314,8 @@ class SquareAPI:
             "by_category": categories_with_pct,
         }
 
-    def get_sales_by_period(
-        self, start_date: datetime, end_date: datetime, group_by: str = "day"
-    ) -> list[dict]:
-        """
-        Get sales aggregated by day, week, or month
-        """
+    def get_sales_by_period(self, start_date: datetime, end_date: datetime, group_by: str = "day") -> list[dict]:
+        """Get sales aggregated by day, week, or month"""
         orders = self.get_orders(start_date, end_date, limit=10000)
 
         sales_by_period = {}
@@ -415,20 +337,15 @@ class SquareAPI:
                 period_key = order_date.strftime("%Y-%m-%d")
 
             if period_key not in sales_by_period:
-                sales_by_period[period_key] = {
-                    "revenue": 0,
-                    "order_count": 0,
-                    "items_sold": 0,
-                }
+                sales_by_period[period_key] = {"revenue": 0, "order_count": 0, "items_sold": 0}
 
-            total_money = order.get("total_money", {})
+            total_money = order.get("total_money", {}) or {}
             sales_by_period[period_key]["revenue"] += total_money.get("amount", 0) / 100
             sales_by_period[period_key]["order_count"] += 1
 
-            for line_item in order.get("line_items", []):
+            for line_item in order.get("line_items", []) or []:
                 sales_by_period[period_key]["items_sold"] += int(line_item.get("quantity", "1"))
 
-        # Sort and format
         result = []
         for period, data in sorted(sales_by_period.items()):
             result.append({
