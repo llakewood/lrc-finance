@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Little Red Coffee - Financial Dashboard</title>
+    <style>
+        :root {
+            --primary: #8B2635;
+            --primary-light: #A63446;
+            --success: #22863a;
+            --warning: #b08800;
+            --danger: #cb2431;
+            --bg: #f6f8fa;
+            --card-bg: #ffffff;
+            --text: #24292e;
+            --text-muted: #586069;
+            --border: #e1e4e8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .period-label {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* Card Grid */
+        .grid {
+            display: grid;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        .card-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .card-change {
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        .positive { color: var(--success); }
+        .negative { color: var(--danger); }
+        .neutral { color: var(--text-muted); }
+
+        /* Section Headers */
+        .section-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 32px 0 16px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        td.number {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        tr:hover {
+            background: var(--bg);
+        }
+
+        /* Benchmark Bars */
+        .benchmark-row {
+            margin-bottom: 16px;
+        }
+
+        .benchmark-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+
+        .benchmark-bar {
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .benchmark-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .benchmark-fill.good { background: var(--success); }
+        .benchmark-fill.warning { background: var(--warning); }
+        .benchmark-fill.concern { background: var(--danger); }
+
+        .benchmark-range {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* Debt Progress */
+        .debt-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .debt-item:last-child {
+            border-bottom: none;
+        }
+
+        .debt-name {
+            font-weight: 500;
+        }
+
+        .debt-amounts {
+            text-align: right;
+        }
+
+        .debt-current {
+            font-weight: 600;
+        }
+
+        .debt-paid {
+            font-size: 12px;
+            color: var(--success);
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin: 16px 0;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .progress-bar {
+            height: 20px;
+            background: var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Little Red Coffee Ltd.</h1>
+            <span class="period-label" id="period-label">Loading...</span>
+        </header>
+
+        <!-- Key Metrics -->
+        <div class="grid grid-4" id="summary-cards">
+            <div class="card">
+                <div class="card-title">Total Revenue</div>
+                <div class="card-value" id="revenue">--</div>
+                <div class="card-change" id="revenue-change">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Net Income</div>
+                <div class="card-value" id="net-income">--</div>
+                <div class="card-change" id="net-income-change">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Cash Position</div>
+                <div class="card-value" id="cash">--</div>
+                <div class="card-change" id="cash-change">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Total Debt</div>
+                <div class="card-value" id="debt">--</div>
+                <div class="card-change" id="debt-change">--</div>
+            </div>
+        </div>
+
+        <!-- Profitability Metrics -->
+        <h2 class="section-header">Profitability Metrics</h2>
+        <div class="grid grid-4" id="metrics-cards">
+            <div class="card">
+                <div class="card-title">Gross Margin</div>
+                <div class="card-value" id="gross-margin">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Net Margin</div>
+                <div class="card-value" id="net-margin">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Labor Cost %</div>
+                <div class="card-value" id="labor-cost">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Rent %</div>
+                <div class="card-value" id="rent-pct">--</div>
+            </div>
+        </div>
+
+        <!-- Two Column Layout -->
+        <div class="grid grid-2">
+            <!-- Industry Benchmarks -->
+            <div>
+                <h2 class="section-header">Industry Benchmarks</h2>
+                <div class="card" id="benchmarks-container">
+                    <div class="loading">Loading benchmarks...</div>
+                </div>
+            </div>
+
+            <!-- Debt Paydown Progress -->
+            <div>
+                <h2 class="section-header">Debt Paydown Progress</h2>
+                <div class="card" id="debt-container">
+                    <div class="loading">Loading debt data...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expense Breakdown -->
+        <h2 class="section-header">Expense Breakdown</h2>
+        <div class="grid grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Cost of Goods Sold</span>
+                </div>
+                <table id="cogs-table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th style="text-align:right">Current</th>
+                            <th style="text-align:right">Previous</th>
+                            <th style="text-align:right">Change</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">General & Administrative</span>
+                </div>
+                <table id="ga-table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th style="text-align:right">Current</th>
+                            <th style="text-align:right">Previous</th>
+                            <th style="text-align:right">Change</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Cash Flow Health -->
+        <h2 class="section-header">Cash Flow Health</h2>
+        <div class="grid grid-4">
+            <div class="card">
+                <div class="card-title">Monthly Avg Revenue</div>
+                <div class="card-value" id="monthly-revenue">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Monthly Avg Expenses</div>
+                <div class="card-value" id="monthly-expenses">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Monthly Net Income</div>
+                <div class="card-value" id="monthly-net">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Current Ratio</div>
+                <div class="card-value" id="current-ratio">--</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Utility functions
+        const formatCurrency = (value) => {
+            return new Intl.NumberFormat('en-CA', {
+                style: 'currency',
+                currency: 'CAD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
+        };
+
+        const formatPct = (value) => `${value.toFixed(1)}%`;
+
+        const formatChange = (value, isPct = false) => {
+            const prefix = value > 0 ? '+' : '';
+            if (isPct) {
+                return `${prefix}${value.toFixed(1)}%`;
+            }
+            return `${prefix}${formatCurrency(value)}`;
+        };
+
+        const getChangeClass = (value, invertColors = false) => {
+            if (value > 0) return invertColors ? 'negative' : 'positive';
+            if (value < 0) return invertColors ? 'positive' : 'negative';
+            return 'neutral';
+        };
+
+        // Load Summary Data
+        async function loadSummary() {
+            const res = await fetch('/api/summary');
+            const data = await res.json();
+
+            document.getElementById('period-label').textContent = data.current_period;
+            document.getElementById('revenue').textContent = formatCurrency(data.current.total_revenue);
+            document.getElementById('net-income').textContent = formatCurrency(data.current.net_income);
+            document.getElementById('cash').textContent = formatCurrency(data.current.cash);
+            document.getElementById('debt').textContent = formatCurrency(data.current.total_debt);
+
+            const revenueChange = document.getElementById('revenue-change');
+            revenueChange.textContent = `${formatChange(data.changes.revenue)} (${formatChange(data.changes.revenue_pct, true)})`;
+            revenueChange.className = `card-change ${getChangeClass(data.changes.revenue)}`;
+
+            const netChange = document.getElementById('net-income-change');
+            netChange.textContent = formatChange(data.changes.net_income);
+            netChange.className = `card-change ${getChangeClass(data.changes.net_income)}`;
+
+            const cashChange = document.getElementById('cash-change');
+            cashChange.textContent = formatChange(data.changes.cash);
+            cashChange.className = `card-change ${getChangeClass(data.changes.cash)}`;
+
+            const debtChange = document.getElementById('debt-change');
+            debtChange.textContent = formatChange(data.changes.debt);
+            debtChange.className = `card-change ${getChangeClass(data.changes.debt, true)}`; // Inverted - debt reduction is good
+        }
+
+        // Load Metrics
+        async function loadMetrics() {
+            const res = await fetch('/api/metrics');
+            const data = await res.json();
+            const current = data.periods[0];
+
+            document.getElementById('gross-margin').textContent = formatPct(current.gross_margin_pct);
+            document.getElementById('net-margin').textContent = formatPct(current.net_margin_pct);
+            document.getElementById('labor-cost').textContent = formatPct(current.labor_cost_pct);
+            document.getElementById('rent-pct').textContent = formatPct(current.rent_pct);
+        }
+
+        // Load Benchmarks
+        async function loadBenchmarks() {
+            const res = await fetch('/api/benchmarks');
+            const data = await res.json();
+            const container = document.getElementById('benchmarks-container');
+
+            let html = '';
+            data.benchmarks.forEach(b => {
+                const maxVal = Math.max(b.industry_high * 1.3, b.your_value * 1.1);
+                const fillWidth = (b.your_value / maxVal) * 100;
+
+                html += `
+                    <div class="benchmark-row">
+                        <div class="benchmark-label">
+                            <span>${b.metric}</span>
+                            <span><strong>${b.your_value.toFixed(1)}${b.unit}</strong></span>
+                        </div>
+                        <div class="benchmark-bar">
+                            <div class="benchmark-fill ${b.status}" style="width: ${fillWidth}%"></div>
+                        </div>
+                        <div class="benchmark-range">
+                            Industry range: ${b.industry_low}${b.unit} - ${b.industry_high}${b.unit} (avg: ${b.industry_avg}${b.unit})
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // Load Debt Progress
+        async function loadDebtProgress() {
+            const res = await fetch('/api/debt-progress');
+            const data = await res.json();
+            const container = document.getElementById('debt-container');
+
+            let html = '';
+            data.loans.forEach(loan => {
+                html += `
+                    <div class="debt-item">
+                        <div class="debt-name">${loan.name}</div>
+                        <div class="debt-amounts">
+                            <div class="debt-current">${formatCurrency(loan.current)}</div>
+                            <div class="debt-paid positive">Paid down ${formatCurrency(loan.paid_down)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            const paidPct = (data.total_paid_down / data.total_previous * 100).toFixed(1);
+
+            html += `
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span>Total Debt Reduction</span>
+                        <span class="positive">${formatCurrency(data.total_paid_down)} (${paidPct}%)</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${100 - (data.total_current / data.total_previous * 100)}%"></div>
+                    </div>
+                    <div class="benchmark-range" style="margin-top: 8px;">
+                        Remaining: ${formatCurrency(data.total_current)} of ${formatCurrency(data.total_previous)}
+                    </div>
+                </div>
+                <div class="debt-item" style="margin-top: 16px; padding-top: 16px; border-top: 2px solid var(--border);">
+                    <div class="debt-name">Equity Position</div>
+                    <div class="debt-amounts">
+                        <div class="debt-current">${formatCurrency(data.equity_current)}</div>
+                        <div class="debt-paid positive">Improved ${formatCurrency(data.equity_improvement)}</div>
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // Load Expense Breakdown
+        async function loadExpenseBreakdown() {
+            const res = await fetch('/api/expense-breakdown');
+            const data = await res.json();
+
+            // COGS Table
+            const cogsData = [
+                ['Purchases (Food/Bev)', data.current.cogs.purchases, data.previous.cogs.purchases],
+                ['Payroll', data.current.cogs.payroll, data.previous.cogs.payroll],
+                ['Total COGS', data.current.cogs.total, data.previous.cogs.total],
+            ];
+
+            const cogsBody = document.querySelector('#cogs-table tbody');
+            cogsBody.innerHTML = cogsData.map(([label, current, previous]) => {
+                const change = current - previous;
+                const changeClass = label.includes('Total') ? getChangeClass(change, true) : getChangeClass(change, true);
+                return `
+                    <tr>
+                        <td>${label}</td>
+                        <td class="number">${formatCurrency(current)}</td>
+                        <td class="number">${formatCurrency(previous)}</td>
+                        <td class="number ${changeClass}">${formatChange(change)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            // G&A Table
+            const gaData = [
+                ['Rent', data.current.ga.rent, data.previous.ga.rent],
+                ['Interest & Bank', data.current.ga.interest_bank, data.previous.ga.interest_bank],
+                ['Insurance', data.current.ga.insurance, data.previous.ga.insurance],
+                ['Amortization', data.current.ga.amortization, data.previous.ga.amortization],
+                ['Accounting/Legal', data.current.ga.accounting, data.previous.ga.accounting],
+                ['Advertising', data.current.ga.advertising, data.previous.ga.advertising],
+                ['Other', data.current.ga.other, data.previous.ga.other],
+                ['Total G&A', data.current.ga.total, data.previous.ga.total],
+            ];
+
+            const gaBody = document.querySelector('#ga-table tbody');
+            gaBody.innerHTML = gaData.map(([label, current, previous]) => {
+                const change = current - previous;
+                const changeClass = getChangeClass(change, true);
+                return `
+                    <tr>
+                        <td>${label}</td>
+                        <td class="number">${formatCurrency(current)}</td>
+                        <td class="number">${formatCurrency(previous)}</td>
+                        <td class="number ${changeClass}">${formatChange(change)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Load Cash Flow Health
+        async function loadCashFlow() {
+            const res = await fetch('/api/cash-flow-health');
+            const data = await res.json();
+
+            document.getElementById('monthly-revenue').textContent = formatCurrency(data.monthly_averages.revenue);
+            document.getElementById('monthly-expenses').textContent = formatCurrency(data.monthly_averages.expenses);
+            document.getElementById('monthly-net').textContent = formatCurrency(data.monthly_averages.net_income);
+            document.getElementById('current-ratio').textContent = data.liquidity.current_ratio.toFixed(2);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSummary();
+            loadMetrics();
+            loadBenchmarks();
+            loadDebtProgress();
+            loadExpenseBreakdown();
+            loadCashFlow();
+        });
+    </script>
+</body>
+</html>
