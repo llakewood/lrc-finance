@@ -245,9 +245,139 @@
             color: var(--text-muted);
         }
 
+        /* Square Live Data Badge */
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #e8f5e9;
+            color: var(--success);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 12px;
+            text-transform: uppercase;
+        }
+
+        .live-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Product Mix Table */
+        .product-row {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .product-row:last-child {
+            border-bottom: none;
+        }
+
+        .product-rank {
+            width: 28px;
+            height: 28px;
+            background: var(--bg);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-right: 12px;
+        }
+
+        .product-rank.top-3 {
+            background: var(--primary);
+            color: white;
+        }
+
+        .product-info {
+            flex: 1;
+        }
+
+        .product-name {
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .product-qty {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .product-revenue {
+            text-align: right;
+        }
+
+        .product-amount {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .product-pct {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Team member list */
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        .team-member {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .team-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 16px;
+            margin: 0 auto 8px;
+        }
+
+        .team-name {
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        .team-role {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Grid 3 columns */
+        .grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
-            .grid-2 {
+            .grid-2, .grid-3 {
                 grid-template-columns: 1fr;
             }
         }
@@ -380,6 +510,57 @@
                 <div class="card-title">Current Ratio</div>
                 <div class="card-value" id="current-ratio">--</div>
             </div>
+        </div>
+
+        <!-- Square Live Data Section -->
+        <div style="display: flex; align-items: center; gap: 12px; margin: 32px 0 16px 0;">
+            <h2 class="section-header" style="margin: 0; flex: 1;">Live POS Data (Last 30 Days)</h2>
+            <span class="live-badge" id="square-status">Connecting...</span>
+        </div>
+
+        <!-- Live Sales Metrics -->
+        <div class="grid grid-4" id="square-metrics">
+            <div class="card">
+                <div class="card-title">POS Revenue</div>
+                <div class="card-value" id="square-revenue">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Orders</div>
+                <div class="card-value" id="square-orders">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Items Sold</div>
+                <div class="card-value" id="square-items">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Avg Ticket</div>
+                <div class="card-value" id="square-ticket">--</div>
+            </div>
+        </div>
+
+        <!-- Product Mix & Team -->
+        <div class="grid grid-2">
+            <!-- Top Sellers -->
+            <div>
+                <h2 class="section-header">Top Sellers</h2>
+                <div class="card" id="product-mix-container">
+                    <div class="loading">Loading product data...</div>
+                </div>
+            </div>
+
+            <!-- Team -->
+            <div>
+                <h2 class="section-header">Team</h2>
+                <div class="card" id="team-container">
+                    <div class="loading">Loading team data...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sales by Category -->
+        <h2 class="section-header">Sales by Category</h2>
+        <div class="card" id="category-container">
+            <div class="loading">Loading category data...</div>
         </div>
     </div>
 
@@ -589,14 +770,163 @@
             document.getElementById('current-ratio').textContent = data.liquidity.current_ratio.toFixed(2);
         }
 
+        // =====================================================================
+        // SQUARE LIVE DATA
+        // =====================================================================
+
+        // Check Square Status
+        async function checkSquareStatus() {
+            const badge = document.getElementById('square-status');
+            try {
+                const res = await fetch('/api/square/status');
+                const data = await res.json();
+
+                if (data.connected) {
+                    badge.textContent = 'Live';
+                    badge.style.background = '#e8f5e9';
+                    badge.style.color = 'var(--success)';
+                    return true;
+                } else {
+                    badge.textContent = 'Not Connected';
+                    badge.style.background = '#fff3cd';
+                    badge.style.color = 'var(--warning)';
+                    return false;
+                }
+            } catch (e) {
+                badge.textContent = 'Error';
+                badge.style.background = '#f8d7da';
+                badge.style.color = 'var(--danger)';
+                return false;
+            }
+        }
+
+        // Load Product Mix
+        async function loadProductMix() {
+            try {
+                const res = await fetch('/api/square/product-mix?days=30');
+                const data = await res.json();
+
+                // Update metrics
+                document.getElementById('square-revenue').textContent = formatCurrency(data.totals.revenue);
+                document.getElementById('square-orders').textContent = data.totals.order_count.toLocaleString();
+                document.getElementById('square-items').textContent = data.totals.items_sold.toLocaleString();
+                document.getElementById('square-ticket').textContent = formatCurrency(data.totals.avg_ticket);
+
+                // Top products
+                const container = document.getElementById('product-mix-container');
+                let html = '';
+                data.top_items.slice(0, 10).forEach((item, i) => {
+                    const rankClass = i < 3 ? 'top-3' : '';
+                    html += `
+                        <div class="product-row">
+                            <div class="product-rank ${rankClass}">${i + 1}</div>
+                            <div class="product-info">
+                                <div class="product-name">${item.name}</div>
+                                <div class="product-qty">${item.quantity} sold</div>
+                            </div>
+                            <div class="product-revenue">
+                                <div class="product-amount">${formatCurrency(item.revenue)}</div>
+                                <div class="product-pct">${item.pct_of_revenue}%</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+
+                // Categories
+                const catContainer = document.getElementById('category-container');
+                let catHtml = '<div style="display: flex; flex-wrap: wrap; gap: 16px;">';
+                data.by_category.forEach(cat => {
+                    const width = Math.max(cat.pct_of_revenue * 2, 10);
+                    catHtml += `
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="benchmark-label">
+                                <span>${cat.name}</span>
+                                <span><strong>${formatCurrency(cat.revenue)}</strong></span>
+                            </div>
+                            <div class="benchmark-bar">
+                                <div class="benchmark-fill good" style="width: ${cat.pct_of_revenue}%"></div>
+                            </div>
+                            <div class="benchmark-range">${cat.quantity} items (${cat.pct_of_revenue}%)</div>
+                        </div>
+                    `;
+                });
+                catHtml += '</div>';
+                catContainer.innerHTML = catHtml;
+
+            } catch (e) {
+                console.error('Failed to load product mix:', e);
+                document.getElementById('product-mix-container').innerHTML =
+                    '<div class="loading">Failed to load product data</div>';
+            }
+        }
+
+        // Load Team Data
+        async function loadTeamData() {
+            try {
+                const res = await fetch('/api/square/team');
+                const data = await res.json();
+
+                const container = document.getElementById('team-container');
+                let html = '<div class="team-grid">';
+
+                data.team_members.forEach(member => {
+                    const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
+                    html += `
+                        <div class="team-member">
+                            <div class="team-avatar">${initials}</div>
+                            <div class="team-name">${member.name}</div>
+                            <div class="team-role">${member.status || 'Active'}</div>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+
+                // Add jobs summary
+                if (data.jobs.length > 0) {
+                    html += '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">';
+                    html += '<div class="card-title" style="margin-bottom: 8px;">Roles</div>';
+                    html += '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+                    data.jobs.forEach(job => {
+                        const rate = job.hourly_rate ? ` ($${job.hourly_rate}/hr)` : '';
+                        html += `<span style="background: var(--bg); padding: 4px 10px; border-radius: 4px; font-size: 12px;">${job.title}${rate}</span>`;
+                    });
+                    html += '</div></div>';
+                }
+
+                container.innerHTML = html;
+
+            } catch (e) {
+                console.error('Failed to load team data:', e);
+                document.getElementById('team-container').innerHTML =
+                    '<div class="loading">Failed to load team data</div>';
+            }
+        }
+
         // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Load accounting data
             loadSummary();
             loadMetrics();
             loadBenchmarks();
             loadDebtProgress();
             loadExpenseBreakdown();
             loadCashFlow();
+
+            // Load Square live data
+            const squareConnected = await checkSquareStatus();
+            if (squareConnected) {
+                loadProductMix();
+                loadTeamData();
+            } else {
+                document.getElementById('product-mix-container').innerHTML =
+                    '<div class="loading">Square not connected. Add SQUARE_ACCESS_TOKEN to .env</div>';
+                document.getElementById('team-container').innerHTML =
+                    '<div class="loading">Square not connected</div>';
+                document.getElementById('category-container').innerHTML =
+                    '<div class="loading">Square not connected</div>';
+            }
         });
     </script>
 </body>
