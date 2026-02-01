@@ -17,8 +17,13 @@ COMPLETED:
 - [x] Industry benchmarks comparison
 - [x] Expense breakdown (COGS vs G&A)
 - [x] Debt paydown progress tracker
+- [x] Square API integration (live POS data)
+- [x] Product mix dashboard (top sellers, categories)
+- [x] Team/staffing display
 
 To run: `pip3 install -r requirements.txt && python3 run.py` → http://127.0.0.1:8000
+
+REPO: https://github.com/llakewood/lrc-finance
 
 
 PRIORITIES:
@@ -31,7 +36,7 @@ NEXT STEPS:
 
 Work through the following areas to gain a broader understanding of all areas of the business.
 
-- [ ] Staffing analysis - need staffing data (hours, wages, roles)
-- [ ] Product mix deep-dive - need POS data or menu with costs/prices
+- [x] Staffing analysis - integrated via Square API
+- [x] Product mix deep-dive - integrated via Square API
 - [ ] Scenario planning ("What if...") - build calculator for pricing/volume changes
 - [ ] Monthly tracking system - lightweight system to input monthly numbers

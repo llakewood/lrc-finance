@@ -92,6 +92,81 @@
             text-transform: uppercase;
             color: var(--text-muted);
             letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Info Tooltip */
+        .info-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 1.5px solid var(--text-muted);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-muted);
+            cursor: help;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .info-icon:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .info-icon .tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: normal;
+            line-height: 1.5;
+            width: 240px;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        .info-icon .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: var(--text);
+        }
+
+        .info-icon:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Position tooltips on right side for left-aligned cards */
+        .card:nth-child(1) .info-icon .tooltip,
+        .card:nth-child(2) .info-icon .tooltip {
+            left: 0;
+            transform: translateX(0);
+        }
+
+        .card:nth-child(1) .info-icon .tooltip::after,
+        .card:nth-child(2) .info-icon .tooltip::after {
+            left: 12px;
+            transform: none;
         }
 
         .card-value {
@@ -393,22 +468,34 @@
         <!-- Key Metrics -->
         <div class="grid grid-4" id="summary-cards">
             <div class="card">
-                <div class="card-title">Total Revenue</div>
+                <div class="card-title">
+                    Total Revenue
+                    <span class="info-icon">i<span class="tooltip">All money coming into the business from sales, tips, grants, and other income sources for the fiscal year.</span></span>
+                </div>
                 <div class="card-value" id="revenue">--</div>
                 <div class="card-change" id="revenue-change">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Net Income</div>
+                <div class="card-title">
+                    Net Income
+                    <span class="info-icon">i<span class="tooltip">Your actual profit after ALL expenses (COGS, rent, wages, etc.). This is what you actually keep.</span></span>
+                </div>
                 <div class="card-value" id="net-income">--</div>
                 <div class="card-change" id="net-income-change">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Cash Position</div>
+                <div class="card-title">
+                    Cash Position
+                    <span class="info-icon">i<span class="tooltip">Money available in your bank accounts right now. Important for paying bills and handling emergencies.</span></span>
+                </div>
                 <div class="card-value" id="cash">--</div>
                 <div class="card-change" id="cash-change">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Total Debt</div>
+                <div class="card-title">
+                    Total Debt
+                    <span class="info-icon">i<span class="tooltip">All money you owe including loans (BDC, CIBC) and shareholder loans. Lower is better!</span></span>
+                </div>
                 <div class="card-value" id="debt">--</div>
                 <div class="card-change" id="debt-change">--</div>
             </div>
@@ -418,19 +505,31 @@
         <h2 class="section-header">Profitability Metrics</h2>
         <div class="grid grid-4" id="metrics-cards">
             <div class="card">
-                <div class="card-title">Gross Margin</div>
+                <div class="card-title">
+                    Gross Margin
+                    <span class="info-icon">i<span class="tooltip">Revenue minus direct costs (COGS). Shows how much you keep from each sale before overhead. Coffee shops typically aim for 55-70%.</span></span>
+                </div>
                 <div class="card-value" id="gross-margin">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Net Margin</div>
+                <div class="card-title">
+                    Net Margin
+                    <span class="info-icon">i<span class="tooltip">Your profit as a percentage of revenue. Shows how much of every dollar you actually keep. Coffee shops typically range 2-10%.</span></span>
+                </div>
                 <div class="card-value" id="net-margin">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Labor Cost %</div>
+                <div class="card-title">
+                    Labor Cost %
+                    <span class="info-icon">i<span class="tooltip">Wages and payroll taxes as a percentage of revenue. Coffee shops typically run 25-35%. Lower means more efficient, but watch service quality.</span></span>
+                </div>
                 <div class="card-value" id="labor-cost">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Rent %</div>
+                <div class="card-title">
+                    Rent %
+                    <span class="info-icon">i<span class="tooltip">Rent as a percentage of revenue. Coffee shops typically aim for 6-15%. Above 15% can squeeze profitability.</span></span>
+                </div>
                 <div class="card-value" id="rent-pct">--</div>
             </div>
         </div>
@@ -459,7 +558,10 @@
         <div class="grid grid-2">
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Cost of Goods Sold</span>
+                    <span class="card-title">
+                        Cost of Goods Sold
+                        <span class="info-icon">i<span class="tooltip">Direct costs to make what you sell: coffee beans, food ingredients, cups, and the labor to prepare them.</span></span>
+                    </span>
                 </div>
                 <table id="cogs-table">
                     <thead>
@@ -475,7 +577,10 @@
             </div>
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">General & Administrative</span>
+                    <span class="card-title">
+                        General & Administrative
+                        <span class="info-icon">i<span class="tooltip">Overhead costs: rent, insurance, accounting, advertising. These stay relatively fixed regardless of sales volume.</span></span>
+                    </span>
                 </div>
                 <table id="ga-table">
                     <thead>
@@ -495,19 +600,31 @@
         <h2 class="section-header">Cash Flow Health</h2>
         <div class="grid grid-4">
             <div class="card">
-                <div class="card-title">Monthly Avg Revenue</div>
+                <div class="card-title">
+                    Monthly Avg Revenue
+                    <span class="info-icon">i<span class="tooltip">Your annual revenue divided by 12. Helps you understand typical monthly income patterns.</span></span>
+                </div>
                 <div class="card-value" id="monthly-revenue">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Monthly Avg Expenses</div>
+                <div class="card-title">
+                    Monthly Avg Expenses
+                    <span class="info-icon">i<span class="tooltip">Your annual expenses divided by 12. Use this to plan your monthly cash needs.</span></span>
+                </div>
                 <div class="card-value" id="monthly-expenses">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Monthly Net Income</div>
+                <div class="card-title">
+                    Monthly Net Income
+                    <span class="info-icon">i<span class="tooltip">Average monthly profit. This is roughly what you can expect to have left each month after all expenses.</span></span>
+                </div>
                 <div class="card-value" id="monthly-net">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Current Ratio</div>
+                <div class="card-title">
+                    Current Ratio
+                    <span class="info-icon">i<span class="tooltip">Current assets / current liabilities. Measures ability to pay short-term debts. Above 1.0 is good, above 2.0 is very healthy.</span></span>
+                </div>
                 <div class="card-value" id="current-ratio">--</div>
             </div>
         </div>
@@ -521,19 +638,31 @@
         <!-- Live Sales Metrics -->
         <div class="grid grid-4" id="square-metrics">
             <div class="card">
-                <div class="card-title">POS Revenue</div>
+                <div class="card-title">
+                    POS Revenue
+                    <span class="info-icon">i<span class="tooltip">Total sales recorded in Square POS for the last 30 days. This is real-time data from your register.</span></span>
+                </div>
                 <div class="card-value" id="square-revenue">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Orders</div>
+                <div class="card-title">
+                    Orders
+                    <span class="info-icon">i<span class="tooltip">Number of completed transactions in the last 30 days. More orders = more customers served.</span></span>
+                </div>
                 <div class="card-value" id="square-orders">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Items Sold</div>
+                <div class="card-title">
+                    Items Sold
+                    <span class="info-icon">i<span class="tooltip">Total number of individual items sold. Higher than order count means customers are buying multiple items.</span></span>
+                </div>
                 <div class="card-value" id="square-items">--</div>
             </div>
             <div class="card">
-                <div class="card-title">Avg Ticket</div>
+                <div class="card-title">
+                    Avg Ticket
+                    <span class="info-icon">i<span class="tooltip">Average $ per transaction. Increasing this through upselling is one of the easiest ways to boost revenue.</span></span>
+                </div>
                 <div class="card-value" id="square-ticket">--</div>
             </div>
         </div>
