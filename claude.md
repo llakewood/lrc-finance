@@ -20,10 +20,13 @@ COMPLETED:
 - [x] Square API integration (live POS data)
 - [x] Product mix dashboard (top sellers, categories)
 - [x] Team/staffing display
-- [x] Recipe Costing module - parsed Excel spreadsheet with 142 ingredients & 31 recipes
+- [x] Recipe Costing module - 139 ingredients & 31 recipes
 - [x] Batch profit calculations (revenue = price × portions, fixes margin accuracy)
 - [x] Editable ingredients with JSON persistence
 - [x] Editable recipe details (portions, price, prep time, labor cost)
+- [x] JSON-based storage (migrated from Excel) - data/ingredients.json, data/recipes.json
+- [x] Ingredient linking - recipes link to master ingredients for auto-cost updates
+- [x] Manual linking UI - modal to review/link unmatched ingredients (18 items need review)
 
 To run: `pip3 install -r requirements.txt && python3 run.py` → http://127.0.0.1:8000
 
