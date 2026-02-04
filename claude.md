@@ -27,6 +27,25 @@ COMPLETED:
 - [x] JSON-based storage (migrated from Excel) - data/ingredients.json, data/recipes.json
 - [x] Ingredient linking - recipes link to master ingredients for auto-cost updates
 - [x] Manual linking UI - modal to review/link unmatched ingredients (18 items need review)
+- [x] Component library foundation (Phase 1) - React + TypeScript + Tailwind + Storybook + CVA
+
+FRONTEND (frontend/):
+
+Built with Vite + React 18 + TypeScript + Tailwind CSS v4 + Storybook 10
+
+Atomic design component library with CVA variants:
+- Button (7 variants, 4 sizes)
+- Input (3 variants, 3 sizes)
+- Select (3 variants, 3 sizes)
+- Card (3 variants, 4 paddings, with Header/Title/Description/Content/Footer)
+- Badge (9 variants, 3 sizes)
+- Text (6 variants, 7 sizes, 4 weights, polymorphic)
+- Tooltip (2 variants, 4 positions)
+
+To run frontend: `cd frontend && npm run dev` → http://localhost:5173
+To run Storybook: `cd frontend && npm run storybook` → http://localhost:6006
+
+BACKEND:
 
 To run: `pip3 install -r requirements.txt && python3 run.py` → http://127.0.0.1:8000
 
