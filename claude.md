@@ -20,6 +20,10 @@ COMPLETED:
 - [x] Square API integration (live POS data)
 - [x] Product mix dashboard (top sellers, categories)
 - [x] Team/staffing display
+- [x] Recipe Costing module - parsed Excel spreadsheet with 142 ingredients & 31 recipes
+- [x] Batch profit calculations (revenue = price × portions, fixes margin accuracy)
+- [x] Editable ingredients with JSON persistence
+- [x] Editable recipe details (portions, price, prep time, labor cost)
 
 To run: `pip3 install -r requirements.txt && python3 run.py` → http://127.0.0.1:8000
 
@@ -38,5 +42,6 @@ Work through the following areas to gain a broader understanding of all areas of
 
 - [x] Staffing analysis - integrated via Square API
 - [x] Product mix deep-dive - integrated via Square API
+- [x] Recipe costing - parse & edit recipes, calculate batch profitability
 - [ ] Scenario planning ("What if...") - build calculator for pricing/volume changes
 - [ ] Monthly tracking system - lightweight system to input monthly numbers

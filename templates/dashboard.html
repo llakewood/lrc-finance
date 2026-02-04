@@ -57,6 +57,75 @@
             font-size: 14px;
         }
 
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            position: relative;
+            transition: color 0.2s;
+        }
+
+        .tab-button:hover {
+            color: var(--text);
+        }
+
+        .tab-button.active {
+            color: var(--primary);
+        }
+
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary);
+        }
+
+        .tab-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 8px;
+            padding: 2px 8px;
+            background: #e8f5e9;
+            color: var(--success);
+            font-size: 10px;
+            font-weight: 600;
+            border-radius: 10px;
+            text-transform: uppercase;
+        }
+
+        .tab-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
         /* Card Grid */
         .grid {
             display: grid;
@@ -348,6 +417,50 @@
             50% { opacity: 0.5; }
         }
 
+        /* Refresh Button */
+        .refresh-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--card-bg);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .refresh-btn.loading svg {
+            animation: spin 1s linear infinite;
+        }
+
+        .refresh-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Cache Status */
+        .cache-status {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .cache-status.cached {
+            color: var(--warning);
+        }
+
         /* Product Mix Table */
         .product-row {
             display: flex;
@@ -450,6 +563,205 @@
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
         }
 
+        /* Year Filter Pills */
+        .year-filter {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .year-filter-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .year-pills {
+            display: flex;
+            gap: 6px;
+        }
+
+        .year-pill {
+            padding: 6px 14px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: var(--card-bg);
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .year-pill:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .year-pill.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        /* Recipe table row hover */
+        .recipe-row {
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .recipe-row:hover {
+            background: var(--bg) !important;
+        }
+
+        /* Inline Editing */
+        .editable-cell {
+            cursor: pointer;
+            position: relative;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+
+        .editable-cell:hover {
+            background: #f0f4ff;
+        }
+
+        .editable-cell:hover::after {
+            content: '✎';
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: var(--primary);
+            opacity: 0.6;
+        }
+
+        .edit-input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid var(--primary);
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+            outline: none;
+        }
+
+        .edit-input:focus {
+            box-shadow: 0 0 0 2px rgba(139, 38, 53, 0.2);
+        }
+
+        .edit-label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .edit-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .save-btn, .cancel-btn, .add-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .save-btn {
+            background: var(--primary);
+            color: white;
+        }
+
+        .save-btn:hover {
+            background: var(--primary-light);
+        }
+
+        .cancel-btn {
+            background: var(--border);
+            color: var(--text-muted);
+        }
+
+        .cancel-btn:hover {
+            background: #d1d5db;
+        }
+
+        .add-btn {
+            background: var(--success);
+            color: white;
+        }
+
+        .add-btn:hover {
+            background: #1e7731;
+        }
+
+        .delete-btn {
+            padding: 4px 8px;
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-muted);
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .delete-btn:hover {
+            border-color: var(--danger);
+            color: var(--danger);
+            background: #fff5f5;
+        }
+
+        .editing-row {
+            background: #fffbeb !important;
+        }
+
+        .editing-row td {
+            padding: 8px 4px;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: var(--text);
+            color: white;
+            border-radius: 6px;
+            font-size: 13px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success {
+            background: var(--success);
+        }
+
+        .toast.error {
+            background: var(--danger);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .grid-2, .grid-3 {
@@ -464,6 +776,27 @@
             <h1>Little Red Coffee Ltd.</h1>
             <span class="period-label" id="period-label">Loading...</span>
         </header>
+
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" data-tab="financials">Financial Overview</button>
+            <button class="tab-button" data-tab="pos">
+                Live POS Data
+                <span class="tab-badge" id="square-status-badge">Connecting</span>
+            </button>
+            <button class="tab-button" data-tab="recipes">Recipe Costing</button>
+        </div>
+
+        <!-- Tab 1: Financial Overview -->
+        <div class="tab-panel active" id="tab-financials">
+
+        <!-- Year Filter -->
+        <div class="year-filter">
+            <span class="year-filter-label">Fiscal Year:</span>
+            <div class="year-pills" id="year-pills">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
 
         <!-- Key Metrics -->
         <div class="grid grid-4" id="summary-cards">
@@ -629,9 +962,20 @@
             </div>
         </div>
 
-        <!-- Square Live Data Section -->
-        <div style="display: flex; align-items: center; gap: 12px; margin: 32px 0 16px 0;">
-            <h2 class="section-header" style="margin: 0; flex: 1;">Live POS Data (Last 30 Days)</h2>
+        </div><!-- End Tab 1: Financial Overview -->
+
+        <!-- Tab 2: Live POS Data -->
+        <div class="tab-panel" id="tab-pos">
+
+        <!-- Live Sales Header -->
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+            <h2 class="section-header" style="margin: 0; flex: 1; border: none; padding: 0;">Live POS Data (Last 30 Days)</h2>
+            <span class="cache-status" id="cache-status"></span>
+            <button class="refresh-btn" id="refresh-btn" onclick="refreshSquareData()" title="Refresh data from Square">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                </svg>
+            </button>
             <span class="live-badge" id="square-status">Connecting...</span>
         </div>
 
@@ -691,9 +1035,203 @@
         <div class="card" id="category-container">
             <div class="loading">Loading category data...</div>
         </div>
+
+        </div><!-- End Tab 2: Live POS Data -->
+
+        <!-- Tab 3: Recipe Costing -->
+        <div class="tab-panel" id="tab-recipes">
+
+        <!-- Recipe Summary Cards -->
+        <div class="grid grid-4" id="recipe-summary-cards">
+            <div class="card">
+                <div class="card-title">
+                    Total Recipes
+                    <span class="info-icon">i<span class="tooltip">Number of recipes loaded from your costing spreadsheet.</span></span>
+                </div>
+                <div class="card-value" id="recipe-count">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">
+                    Profitable Items
+                    <span class="info-icon">i<span class="tooltip">Recipes where the sale price exceeds the cost (positive profit margin).</span></span>
+                </div>
+                <div class="card-value positive" id="recipe-profitable">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">
+                    Needs Attention
+                    <span class="info-icon">i<span class="tooltip">Recipes where the cost exceeds the sale price - these may need price adjustments or ingredient changes.</span></span>
+                </div>
+                <div class="card-value negative" id="recipe-unprofitable">--</div>
+            </div>
+            <div class="card">
+                <div class="card-title">
+                    Avg Recipe Cost
+                    <span class="info-icon">i<span class="tooltip">Average ingredient cost across all recipes.</span></span>
+                </div>
+                <div class="card-value" id="recipe-avg-cost">--</div>
+            </div>
+        </div>
+
+        <!-- Recipe List -->
+        <div class="grid grid-2">
+            <!-- All Recipes Table -->
+            <div>
+                <h2 class="section-header">Recipe Profitability</h2>
+                <div class="card" style="max-height: 500px; overflow-y: auto;">
+                    <table id="recipes-table">
+                        <thead>
+                            <tr>
+                                <th>Recipe</th>
+                                <th style="text-align:right">Batch Cost</th>
+                                <th style="text-align:right">Revenue</th>
+                                <th style="text-align:right">Margin</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recipes-tbody">
+                            <tr><td colspan="4" class="loading">Loading recipes...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Recipe Detail -->
+            <div>
+                <h2 class="section-header">Recipe Detail</h2>
+                <div class="card" id="recipe-detail-container">
+                    <div class="loading">Select a recipe to view details</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Master Ingredients -->
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <h2 class="section-header" style="flex: 1;">Master Ingredients (Costing Sheet)</h2>
+            <button class="add-btn" onclick="showAddIngredientForm()">+ Add Ingredient</button>
+        </div>
+
+        <!-- Add Ingredient Form (hidden by default) -->
+        <div class="card add-ingredient-form" id="add-ingredient-form" style="display: none; margin-bottom: 16px;">
+            <div class="card-title" style="margin-bottom: 12px;">Add New Ingredient</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+                <div>
+                    <label class="edit-label">Name *</label>
+                    <input type="text" id="new-ing-name" class="edit-input" placeholder="Ingredient name">
+                </div>
+                <div>
+                    <label class="edit-label">Category</label>
+                    <input type="text" id="new-ing-category" class="edit-input" placeholder="Category" list="category-list">
+                    <datalist id="category-list"></datalist>
+                </div>
+                <div>
+                    <label class="edit-label">Package Cost ($)</label>
+                    <input type="number" id="new-ing-cost" class="edit-input" step="0.01" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="edit-label">Units per Package</label>
+                    <input type="number" id="new-ing-units" class="edit-input" step="1" placeholder="0">
+                </div>
+                <div>
+                    <label class="edit-label">Unit Sale Price ($)</label>
+                    <input type="number" id="new-ing-sale" class="edit-input" step="0.01" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="edit-label">Supplier</label>
+                    <input type="text" id="new-ing-supplier" class="edit-input" placeholder="Supplier name">
+                </div>
+            </div>
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <button class="save-btn" onclick="saveNewIngredient()">Save Ingredient</button>
+                <button class="cancel-btn" onclick="hideAddIngredientForm()">Cancel</button>
+            </div>
+        </div>
+
+        <div class="card" style="max-height: 500px; overflow-y: auto;">
+            <table id="ingredients-table">
+                <thead>
+                    <tr>
+                        <th>Ingredient</th>
+                        <th>Category</th>
+                        <th style="text-align:right">Package Cost</th>
+                        <th style="text-align:right">Units</th>
+                        <th style="text-align:right">Cost/Unit</th>
+                        <th>Supplier</th>
+                        <th style="width: 80px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="ingredients-tbody">
+                    <tr><td colspan="7" class="loading">Loading ingredients...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        </div><!-- End Tab 3: Recipe Costing -->
+
     </div>
 
     <script>
+        // =====================================================================
+        // STATE
+        // =====================================================================
+        let selectedYear = null;  // null = most recent (default)
+
+        // =====================================================================
+        // TAB NAVIGATION
+        // =====================================================================
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                // Update active button
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+
+                // Show corresponding panel
+                const tabId = button.dataset.tab;
+                document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+                document.getElementById('tab-' + tabId).classList.add('active');
+            });
+        });
+
+        // =====================================================================
+        // YEAR FILTER
+        // =====================================================================
+        async function loadFiscalYears() {
+            const res = await fetch('/api/fiscal-years');
+            const data = await res.json();
+
+            const container = document.getElementById('year-pills');
+            container.innerHTML = data.fiscal_years.map((fy, i) => `
+                <button class="year-pill ${i === 0 ? 'active' : ''}" data-year="${fy.label}">
+                    ${fy.label}
+                </button>
+            `).join('');
+
+            // Add click handlers
+            container.querySelectorAll('.year-pill').forEach(pill => {
+                pill.addEventListener('click', () => {
+                    container.querySelectorAll('.year-pill').forEach(p => p.classList.remove('active'));
+                    pill.classList.add('active');
+                    selectedYear = pill.dataset.year;
+                    loadFinancialData();
+                });
+            });
+        }
+
+        function getYearParam() {
+            return selectedYear ? `?year=${selectedYear}` : '';
+        }
+
+        async function loadFinancialData() {
+            // Load all financial data for selected year
+            await Promise.all([
+                loadSummary(),
+                loadMetrics(),
+                loadBenchmarks(),
+                loadDebtProgress(),
+                loadExpenseBreakdown(),
+                loadCashFlow()
+            ]);
+        }
+
         // Utility functions
         const formatCurrency = (value) => {
             return new Intl.NumberFormat('en-CA', {
@@ -722,7 +1260,7 @@
 
         // Load Summary Data
         async function loadSummary() {
-            const res = await fetch('/api/summary');
+            const res = await fetch('/api/summary' + getYearParam());
             const data = await res.json();
 
             document.getElementById('period-label').textContent = data.current_period;
@@ -732,25 +1270,38 @@
             document.getElementById('debt').textContent = formatCurrency(data.current.total_debt);
 
             const revenueChange = document.getElementById('revenue-change');
-            revenueChange.textContent = `${formatChange(data.changes.revenue)} (${formatChange(data.changes.revenue_pct, true)})`;
-            revenueChange.className = `card-change ${getChangeClass(data.changes.revenue)}`;
-
             const netChange = document.getElementById('net-income-change');
-            netChange.textContent = formatChange(data.changes.net_income);
-            netChange.className = `card-change ${getChangeClass(data.changes.net_income)}`;
-
             const cashChange = document.getElementById('cash-change');
-            cashChange.textContent = formatChange(data.changes.cash);
-            cashChange.className = `card-change ${getChangeClass(data.changes.cash)}`;
-
             const debtChange = document.getElementById('debt-change');
-            debtChange.textContent = formatChange(data.changes.debt);
-            debtChange.className = `card-change ${getChangeClass(data.changes.debt, true)}`; // Inverted - debt reduction is good
+
+            if (data.has_comparison) {
+                revenueChange.textContent = `${formatChange(data.changes.revenue)} (${formatChange(data.changes.revenue_pct, true)})`;
+                revenueChange.className = `card-change ${getChangeClass(data.changes.revenue)}`;
+
+                netChange.textContent = formatChange(data.changes.net_income);
+                netChange.className = `card-change ${getChangeClass(data.changes.net_income)}`;
+
+                cashChange.textContent = formatChange(data.changes.cash);
+                cashChange.className = `card-change ${getChangeClass(data.changes.cash)}`;
+
+                debtChange.textContent = formatChange(data.changes.debt);
+                debtChange.className = `card-change ${getChangeClass(data.changes.debt, true)}`;
+            } else {
+                // No comparison data available
+                revenueChange.textContent = '--';
+                revenueChange.className = 'card-change neutral';
+                netChange.textContent = '--';
+                netChange.className = 'card-change neutral';
+                cashChange.textContent = '--';
+                cashChange.className = 'card-change neutral';
+                debtChange.textContent = '--';
+                debtChange.className = 'card-change neutral';
+            }
         }
 
         // Load Metrics
         async function loadMetrics() {
-            const res = await fetch('/api/metrics');
+            const res = await fetch('/api/metrics' + getYearParam());
             const data = await res.json();
             const current = data.periods[0];
 
@@ -762,7 +1313,7 @@
 
         // Load Benchmarks
         async function loadBenchmarks() {
-            const res = await fetch('/api/benchmarks');
+            const res = await fetch('/api/benchmarks' + getYearParam());
             const data = await res.json();
             const container = document.getElementById('benchmarks-container');
 
@@ -791,106 +1342,148 @@
 
         // Load Debt Progress
         async function loadDebtProgress() {
-            const res = await fetch('/api/debt-progress');
+            const res = await fetch('/api/debt-progress' + getYearParam());
             const data = await res.json();
             const container = document.getElementById('debt-container');
 
             let html = '';
             data.loans.forEach(loan => {
+                const paidDownText = data.has_comparison ? `Paid down ${formatCurrency(loan.paid_down)}` : '';
                 html += `
                     <div class="debt-item">
                         <div class="debt-name">${loan.name}</div>
                         <div class="debt-amounts">
                             <div class="debt-current">${formatCurrency(loan.current)}</div>
-                            <div class="debt-paid positive">Paid down ${formatCurrency(loan.paid_down)}</div>
+                            ${paidDownText ? `<div class="debt-paid positive">${paidDownText}</div>` : ''}
                         </div>
                     </div>
                 `;
             });
 
-            const paidPct = (data.total_paid_down / data.total_previous * 100).toFixed(1);
-
-            html += `
-                <div class="progress-container">
-                    <div class="progress-label">
-                        <span>Total Debt Reduction</span>
-                        <span class="positive">${formatCurrency(data.total_paid_down)} (${paidPct}%)</span>
+            if (data.has_comparison) {
+                const paidPct = (data.total_paid_down / data.total_previous * 100).toFixed(1);
+                html += `
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>Total Debt Reduction</span>
+                            <span class="positive">${formatCurrency(data.total_paid_down)} (${paidPct}%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${100 - (data.total_current / data.total_previous * 100)}%"></div>
+                        </div>
+                        <div class="benchmark-range" style="margin-top: 8px;">
+                            Remaining: ${formatCurrency(data.total_current)} of ${formatCurrency(data.total_previous)}
+                        </div>
                     </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${100 - (data.total_current / data.total_previous * 100)}%"></div>
+                    <div class="debt-item" style="margin-top: 16px; padding-top: 16px; border-top: 2px solid var(--border);">
+                        <div class="debt-name">Equity Position</div>
+                        <div class="debt-amounts">
+                            <div class="debt-current">${formatCurrency(data.equity_current)}</div>
+                            <div class="debt-paid positive">Improved ${formatCurrency(data.equity_improvement)}</div>
+                        </div>
                     </div>
-                    <div class="benchmark-range" style="margin-top: 8px;">
-                        Remaining: ${formatCurrency(data.total_current)} of ${formatCurrency(data.total_previous)}
+                `;
+            } else {
+                html += `
+                    <div class="debt-item" style="margin-top: 16px; padding-top: 16px; border-top: 2px solid var(--border);">
+                        <div class="debt-name">Total Debt</div>
+                        <div class="debt-amounts">
+                            <div class="debt-current">${formatCurrency(data.total_current)}</div>
+                        </div>
                     </div>
-                </div>
-                <div class="debt-item" style="margin-top: 16px; padding-top: 16px; border-top: 2px solid var(--border);">
-                    <div class="debt-name">Equity Position</div>
-                    <div class="debt-amounts">
-                        <div class="debt-current">${formatCurrency(data.equity_current)}</div>
-                        <div class="debt-paid positive">Improved ${formatCurrency(data.equity_improvement)}</div>
+                    <div class="debt-item">
+                        <div class="debt-name">Equity Position</div>
+                        <div class="debt-amounts">
+                            <div class="debt-current">${formatCurrency(data.equity_current)}</div>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
 
             container.innerHTML = html;
         }
 
         // Load Expense Breakdown
         async function loadExpenseBreakdown() {
-            const res = await fetch('/api/expense-breakdown');
+            const res = await fetch('/api/expense-breakdown' + getYearParam());
             const data = await res.json();
+
+            const hasComparison = data.has_comparison;
+            const prev = hasComparison ? data.previous : null;
 
             // COGS Table
             const cogsData = [
-                ['Purchases (Food/Bev)', data.current.cogs.purchases, data.previous.cogs.purchases],
-                ['Payroll', data.current.cogs.payroll, data.previous.cogs.payroll],
-                ['Total COGS', data.current.cogs.total, data.previous.cogs.total],
+                ['Purchases (Food/Bev)', data.current.cogs.purchases, prev?.cogs.purchases || 0],
+                ['Payroll', data.current.cogs.payroll, prev?.cogs.payroll || 0],
+                ['Total COGS', data.current.cogs.total, prev?.cogs.total || 0],
             ];
 
             const cogsBody = document.querySelector('#cogs-table tbody');
             cogsBody.innerHTML = cogsData.map(([label, current, previous]) => {
-                const change = current - previous;
-                const changeClass = label.includes('Total') ? getChangeClass(change, true) : getChangeClass(change, true);
-                return `
-                    <tr>
-                        <td>${label}</td>
-                        <td class="number">${formatCurrency(current)}</td>
-                        <td class="number">${formatCurrency(previous)}</td>
-                        <td class="number ${changeClass}">${formatChange(change)}</td>
-                    </tr>
-                `;
+                if (hasComparison) {
+                    const change = current - previous;
+                    const changeClass = getChangeClass(change, true);
+                    return `
+                        <tr>
+                            <td>${label}</td>
+                            <td class="number">${formatCurrency(current)}</td>
+                            <td class="number">${formatCurrency(previous)}</td>
+                            <td class="number ${changeClass}">${formatChange(change)}</td>
+                        </tr>
+                    `;
+                } else {
+                    return `
+                        <tr>
+                            <td>${label}</td>
+                            <td class="number">${formatCurrency(current)}</td>
+                            <td class="number">--</td>
+                            <td class="number">--</td>
+                        </tr>
+                    `;
+                }
             }).join('');
 
             // G&A Table
             const gaData = [
-                ['Rent', data.current.ga.rent, data.previous.ga.rent],
-                ['Interest & Bank', data.current.ga.interest_bank, data.previous.ga.interest_bank],
-                ['Insurance', data.current.ga.insurance, data.previous.ga.insurance],
-                ['Amortization', data.current.ga.amortization, data.previous.ga.amortization],
-                ['Accounting/Legal', data.current.ga.accounting, data.previous.ga.accounting],
-                ['Advertising', data.current.ga.advertising, data.previous.ga.advertising],
-                ['Other', data.current.ga.other, data.previous.ga.other],
-                ['Total G&A', data.current.ga.total, data.previous.ga.total],
+                ['Rent', data.current.ga.rent, prev?.ga.rent || 0],
+                ['Interest & Bank', data.current.ga.interest_bank, prev?.ga.interest_bank || 0],
+                ['Insurance', data.current.ga.insurance, prev?.ga.insurance || 0],
+                ['Amortization', data.current.ga.amortization, prev?.ga.amortization || 0],
+                ['Accounting/Legal', data.current.ga.accounting, prev?.ga.accounting || 0],
+                ['Advertising', data.current.ga.advertising, prev?.ga.advertising || 0],
+                ['Other', data.current.ga.other, prev?.ga.other || 0],
+                ['Total G&A', data.current.ga.total, prev?.ga.total || 0],
             ];
 
             const gaBody = document.querySelector('#ga-table tbody');
             gaBody.innerHTML = gaData.map(([label, current, previous]) => {
-                const change = current - previous;
-                const changeClass = getChangeClass(change, true);
-                return `
-                    <tr>
-                        <td>${label}</td>
-                        <td class="number">${formatCurrency(current)}</td>
-                        <td class="number">${formatCurrency(previous)}</td>
-                        <td class="number ${changeClass}">${formatChange(change)}</td>
-                    </tr>
-                `;
+                if (hasComparison) {
+                    const change = current - previous;
+                    const changeClass = getChangeClass(change, true);
+                    return `
+                        <tr>
+                            <td>${label}</td>
+                            <td class="number">${formatCurrency(current)}</td>
+                            <td class="number">${formatCurrency(previous)}</td>
+                            <td class="number ${changeClass}">${formatChange(change)}</td>
+                        </tr>
+                    `;
+                } else {
+                    return `
+                        <tr>
+                            <td>${label}</td>
+                            <td class="number">${formatCurrency(current)}</td>
+                            <td class="number">--</td>
+                            <td class="number">--</td>
+                        </tr>
+                    `;
+                }
             }).join('');
         }
 
         // Load Cash Flow Health
         async function loadCashFlow() {
-            const res = await fetch('/api/cash-flow-health');
+            const res = await fetch('/api/cash-flow-health' + getYearParam());
             const data = await res.json();
 
             document.getElementById('monthly-revenue').textContent = formatCurrency(data.monthly_averages.revenue);
@@ -906,34 +1499,66 @@
         // Check Square Status
         async function checkSquareStatus() {
             const badge = document.getElementById('square-status');
+            const tabBadge = document.getElementById('square-status-badge');
+
+            function updateBadges(text, bg, color) {
+                [badge, tabBadge].forEach(b => {
+                    if (b) {
+                        b.textContent = text;
+                        b.style.background = bg;
+                        b.style.color = color;
+                    }
+                });
+            }
+
             try {
                 const res = await fetch('/api/square/status');
                 const data = await res.json();
 
                 if (data.connected) {
-                    badge.textContent = 'Live';
-                    badge.style.background = '#e8f5e9';
-                    badge.style.color = 'var(--success)';
+                    updateBadges('Live', '#e8f5e9', 'var(--success)');
                     return true;
                 } else {
-                    badge.textContent = 'Not Connected';
-                    badge.style.background = '#fff3cd';
-                    badge.style.color = 'var(--warning)';
+                    updateBadges('Not Connected', '#fff3cd', 'var(--warning)');
                     return false;
                 }
             } catch (e) {
-                badge.textContent = 'Error';
-                badge.style.background = '#f8d7da';
-                badge.style.color = 'var(--danger)';
+                updateBadges('Error', '#f8d7da', 'var(--danger)');
                 return false;
             }
         }
 
+        // Update cache status display
+        function updateCacheStatus(cacheInfo) {
+            const statusEl = document.getElementById('cache-status');
+            if (!cacheInfo) {
+                statusEl.textContent = '';
+                return;
+            }
+
+            if (cacheInfo.cached) {
+                const mins = Math.floor(cacheInfo.age_seconds / 60);
+                const secs = cacheInfo.age_seconds % 60;
+                const timeAgo = mins > 0 ? `${mins}m ${secs}s ago` : `${secs}s ago`;
+                statusEl.textContent = `Cached ${timeAgo}`;
+                statusEl.className = 'cache-status cached';
+            } else {
+                statusEl.textContent = 'Just updated';
+                statusEl.className = 'cache-status';
+            }
+        }
+
         // Load Product Mix
-        async function loadProductMix() {
+        async function loadProductMix(forceRefresh = false) {
             try {
-                const res = await fetch('/api/square/product-mix?days=30');
+                const url = `/api/square/product-mix?days=30${forceRefresh ? '&refresh=true' : ''}`;
+                const res = await fetch(url);
                 const data = await res.json();
+
+                // Update cache status
+                if (data._cache) {
+                    updateCacheStatus(data._cache);
+                }
 
                 // Update metrics
                 document.getElementById('square-revenue').textContent = formatCurrency(data.totals.revenue);
@@ -991,9 +1616,10 @@
         }
 
         // Load Team Data
-        async function loadTeamData() {
+        async function loadTeamData(forceRefresh = false) {
             try {
-                const res = await fetch('/api/square/team');
+                const url = `/api/square/team${forceRefresh ? '?refresh=true' : ''}`;
+                const res = await fetch(url);
                 const data = await res.json();
 
                 const container = document.getElementById('team-container');
@@ -1033,15 +1659,564 @@
             }
         }
 
+        // Refresh Square Data
+        async function refreshSquareData() {
+            const btn = document.getElementById('refresh-btn');
+            btn.classList.add('loading');
+            btn.disabled = true;
+
+            try {
+                await Promise.all([
+                    loadProductMix(true),
+                    loadTeamData(true)
+                ]);
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }
+        }
+
+        // =====================================================================
+        // RECIPE COSTING
+        // =====================================================================
+
+        let recipesData = [];  // Cache for recipe data
+
+        async function loadRecipes() {
+            try {
+                const res = await fetch('/api/recipes?sort_by=profit');
+                const data = await res.json();
+                recipesData = data.recipes;
+
+                // Update summary cards
+                document.getElementById('recipe-count').textContent = data.summary.total_recipes;
+                document.getElementById('recipe-profitable').textContent = data.summary.profitable_count;
+                document.getElementById('recipe-unprofitable').textContent = data.summary.unprofitable_count;
+                document.getElementById('recipe-avg-cost').textContent = formatCurrency(data.summary.avg_cost);
+
+                // Populate recipes table
+                const tbody = document.getElementById('recipes-tbody');
+                tbody.innerHTML = data.recipes.map(recipe => {
+                    const cost = recipe.cost_per_recipe;  // Total batch cost
+                    const price = recipe.proposed_sale_price;  // Per-portion sale price
+                    const portions = recipe.portions || 1;
+
+                    // Calculate batch economics: revenue = price × portions
+                    let batchRevenue = null;
+                    let batchProfit = null;
+                    let marginPct = null;
+                    let marginClass = 'neutral';
+
+                    if (price && portions) {
+                        batchRevenue = price * portions;
+                        if (cost) {
+                            batchProfit = batchRevenue - cost;
+                            marginPct = (batchProfit / batchRevenue) * 100;
+                            marginClass = marginPct >= 0 ? 'positive' : 'negative';
+                        }
+                    }
+
+                    return `
+                        <tr class="recipe-row" data-recipe="${encodeURIComponent(recipe.name)}" onclick="showRecipeDetail('${encodeURIComponent(recipe.name)}')">
+                            <td><strong>${recipe.name}</strong></td>
+                            <td class="number">${cost ? formatCurrency(cost) : '--'}</td>
+                            <td class="number">${batchRevenue ? formatCurrency(batchRevenue) : '--'}</td>
+                            <td class="number ${marginClass}">${marginPct !== null ? marginPct.toFixed(0) + '%' : '--'}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (e) {
+                console.error('Failed to load recipes:', e);
+                document.getElementById('recipes-tbody').innerHTML =
+                    '<tr><td colspan="4" class="loading">Failed to load recipes</td></tr>';
+            }
+        }
+
+        let ingredientsData = [];  // Cache for ingredients
+        let editingIngredientId = null;  // Currently editing ingredient
+        let selectedRecipeId = null;  // Currently selected recipe
+        let editingRecipe = false;  // Whether we're in recipe edit mode
+
+        async function loadIngredients() {
+            try {
+                const res = await fetch('/api/ingredients');
+                const data = await res.json();
+                ingredientsData = data.ingredients;
+
+                // Populate category datalist for add form
+                const categories = [...new Set(data.ingredients.map(i => i.category))];
+                document.getElementById('category-list').innerHTML =
+                    categories.map(c => `<option value="${c}">`).join('');
+
+                renderIngredientsTable();
+
+            } catch (e) {
+                console.error('Failed to load ingredients:', e);
+                document.getElementById('ingredients-tbody').innerHTML =
+                    '<tr><td colspan="7" class="loading">Failed to load ingredients</td></tr>';
+            }
+        }
+
+        function renderIngredientsTable() {
+            const tbody = document.getElementById('ingredients-tbody');
+            tbody.innerHTML = ingredientsData.map(ing => {
+                if (editingIngredientId === ing.id) {
+                    return renderEditingRow(ing);
+                }
+                return renderIngredientRow(ing);
+            }).join('');
+        }
+
+        function renderIngredientRow(ing) {
+            return `
+                <tr data-id="${ing.id}">
+                    <td class="editable-cell" onclick="startEditCell('${ing.id}', 'name')">${ing.name}</td>
+                    <td class="editable-cell" onclick="startEditCell('${ing.id}', 'category')">${ing.category}</td>
+                    <td class="number editable-cell" onclick="startEditCell('${ing.id}', 'cost')">${ing.cost ? formatCurrency(ing.cost) : '--'}</td>
+                    <td class="number editable-cell" onclick="startEditCell('${ing.id}', 'units')">${ing.units || '--'}</td>
+                    <td class="number">${ing.cost_per_unit ? '$' + ing.cost_per_unit.toFixed(4) : '--'}</td>
+                    <td class="editable-cell" onclick="startEditCell('${ing.id}', 'supplier')">${ing.supplier || '--'}</td>
+                    <td>
+                        <button class="delete-btn" onclick="confirmDeleteIngredient('${ing.id}', '${ing.name.replace(/'/g, "\\'")}')">Delete</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderEditingRow(ing) {
+            return `
+                <tr data-id="${ing.id}" class="editing-row">
+                    <td><input type="text" class="edit-input" id="edit-name" value="${ing.name || ''}" placeholder="Name"></td>
+                    <td><input type="text" class="edit-input" id="edit-category" value="${ing.category || ''}" placeholder="Category" list="category-list"></td>
+                    <td><input type="number" class="edit-input" id="edit-cost" value="${ing.cost || ''}" step="0.01" placeholder="Cost"></td>
+                    <td><input type="number" class="edit-input" id="edit-units" value="${ing.units || ''}" step="1" placeholder="Units"></td>
+                    <td class="number">${ing.cost_per_unit ? '$' + ing.cost_per_unit.toFixed(4) : '--'}</td>
+                    <td><input type="text" class="edit-input" id="edit-supplier" value="${ing.supplier || ''}" placeholder="Supplier"></td>
+                    <td>
+                        <div class="edit-actions">
+                            <button class="save-btn" onclick="saveIngredientEdit('${ing.id}')">Save</button>
+                            <button class="cancel-btn" onclick="cancelEdit()">Cancel</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function startEditCell(id, field) {
+            editingIngredientId = id;
+            renderIngredientsTable();
+            // Focus the specific field
+            setTimeout(() => {
+                const input = document.getElementById('edit-' + field);
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            }, 50);
+        }
+
+        function cancelEdit() {
+            editingIngredientId = null;
+            renderIngredientsTable();
+        }
+
+        async function saveIngredientEdit(id) {
+            const updates = {
+                name: document.getElementById('edit-name').value,
+                category: document.getElementById('edit-category').value,
+                cost: document.getElementById('edit-cost').value,
+                units: document.getElementById('edit-units').value,
+                supplier: document.getElementById('edit-supplier').value,
+            };
+
+            try {
+                const res = await fetch(`/api/ingredients/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(updates)
+                });
+
+                if (!res.ok) throw new Error('Failed to save');
+
+                const data = await res.json();
+
+                // Update local data
+                const idx = ingredientsData.findIndex(i => i.id === id);
+                if (idx >= 0) {
+                    ingredientsData[idx] = data.ingredient;
+                }
+
+                editingIngredientId = null;
+                renderIngredientsTable();
+                showToast('Ingredient updated', 'success');
+
+            } catch (e) {
+                console.error('Failed to save ingredient:', e);
+                showToast('Failed to save changes', 'error');
+            }
+        }
+
+        async function confirmDeleteIngredient(id, name) {
+            if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+
+            try {
+                const res = await fetch(`/api/ingredients/${id}`, {method: 'DELETE'});
+                if (!res.ok) throw new Error('Failed to delete');
+
+                // Remove from local data
+                ingredientsData = ingredientsData.filter(i => i.id !== id);
+                renderIngredientsTable();
+                showToast('Ingredient deleted', 'success');
+
+            } catch (e) {
+                console.error('Failed to delete ingredient:', e);
+                showToast('Failed to delete ingredient', 'error');
+            }
+        }
+
+        // Add ingredient form functions
+        function showAddIngredientForm() {
+            document.getElementById('add-ingredient-form').style.display = 'block';
+            document.getElementById('new-ing-name').focus();
+        }
+
+        function hideAddIngredientForm() {
+            document.getElementById('add-ingredient-form').style.display = 'none';
+            // Clear form
+            ['name', 'category', 'cost', 'units', 'sale', 'supplier'].forEach(f => {
+                document.getElementById('new-ing-' + f).value = '';
+            });
+        }
+
+        async function saveNewIngredient() {
+            const name = document.getElementById('new-ing-name').value.trim();
+            if (!name) {
+                showToast('Ingredient name is required', 'error');
+                return;
+            }
+
+            const data = {
+                name: name,
+                category: document.getElementById('new-ing-category').value.trim() || 'Uncategorized',
+                cost: parseFloat(document.getElementById('new-ing-cost').value) || null,
+                units: parseFloat(document.getElementById('new-ing-units').value) || null,
+                unit_sale: parseFloat(document.getElementById('new-ing-sale').value) || null,
+                supplier: document.getElementById('new-ing-supplier').value.trim() || null,
+            };
+
+            try {
+                const res = await fetch('/api/ingredients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+
+                if (!res.ok) throw new Error('Failed to create');
+
+                const result = await res.json();
+                ingredientsData.unshift(result.ingredient);  // Add to beginning
+                renderIngredientsTable();
+                hideAddIngredientForm();
+                showToast('Ingredient added', 'success');
+
+            } catch (e) {
+                console.error('Failed to add ingredient:', e);
+                showToast('Failed to add ingredient', 'error');
+            }
+        }
+
+        // Toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Handle Enter key in edit inputs
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && editingIngredientId) {
+                e.preventDefault();
+                saveIngredientEdit(editingIngredientId);
+            }
+            if (e.key === 'Escape' && editingIngredientId) {
+                cancelEdit();
+            }
+        });
+
+        function showRecipeDetail(encodedName, forceEditMode = false) {
+            const name = decodeURIComponent(encodedName);
+            const recipe = recipesData.find(r => r.name === name);
+            if (!recipe) return;
+
+            selectedRecipeId = recipe.id;
+            if (forceEditMode) editingRecipe = true;
+
+            // Highlight selected row
+            document.querySelectorAll('.recipe-row').forEach(row => row.style.background = '');
+            const selectedRow = document.querySelector(`.recipe-row[data-recipe="${encodedName}"]`);
+            if (selectedRow) selectedRow.style.background = 'var(--bg)';
+
+            const container = document.getElementById('recipe-detail-container');
+
+            // Batch economics calculation
+            const batchCost = recipe.cost_per_recipe;
+            const pricePerPortion = recipe.proposed_sale_price;
+            const portions = recipe.portions || 1;
+
+            let batchRevenue = null;
+            let batchProfit = null;
+            let marginPct = null;
+
+            if (pricePerPortion && portions) {
+                batchRevenue = pricePerPortion * portions;
+                if (batchCost) {
+                    batchProfit = batchRevenue - batchCost;
+                    marginPct = (batchProfit / batchRevenue) * 100;
+                }
+            }
+
+            const marginClass = marginPct !== null && marginPct >= 0 ? 'positive' : 'negative';
+            const profitBgColor = marginPct !== null && marginPct >= 0 ? '#e8f5e9' : '#ffebee';
+
+            let html = '';
+
+            if (editingRecipe) {
+                // EDIT MODE
+                html = `
+                    <div style="margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <label class="edit-label">Recipe Name</label>
+                                <input type="text" class="edit-input" id="edit-recipe-name" value="${recipe.name || ''}" style="font-size: 16px; font-weight: 600;">
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <label class="edit-label">Concept/Description</label>
+                            <input type="text" class="edit-input" id="edit-recipe-concept" value="${recipe.concept || ''}" placeholder="e.g., Signature drink, Seasonal item">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-2" style="margin-bottom: 12px; gap: 12px;">
+                        <div style="background: var(--bg); padding: 12px; border-radius: 6px;">
+                            <div class="card-title" style="margin-bottom: 4px;">Batch Cost</div>
+                            <div style="font-size: 20px; font-weight: 600;">${batchCost ? formatCurrency(batchCost) : '--'}</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">From ingredients (not editable)</div>
+                        </div>
+                        <div style="background: var(--bg); padding: 12px; border-radius: 6px;">
+                            <div class="card-title" style="margin-bottom: 4px;">Batch Revenue</div>
+                            <div style="font-size: 20px; font-weight: 600;" id="edit-batch-revenue">${batchRevenue ? formatCurrency(batchRevenue) : '--'}</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Calculated from price x portions</div>
+                        </div>
+                    </div>
+
+                    <div style="background: ${profitBgColor}; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Batch Profit</span>
+                            <span class="${marginClass}" style="font-size: 18px; font-weight: 600;" id="edit-batch-profit">
+                                ${batchProfit !== null ? formatCurrency(batchProfit) : '--'}
+                                ${marginPct !== null ? ` (${marginPct.toFixed(1)}%)` : ''}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 16px;">
+                        <div class="card-title" style="margin-bottom: 8px;">Editable Fields</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+                            <div>
+                                <label class="edit-label">Portions per batch</label>
+                                <input type="number" class="edit-input" id="edit-recipe-portions" value="${portions}" min="1" step="1" onchange="updateRecipePreview()">
+                            </div>
+                            <div>
+                                <label class="edit-label">Price per portion ($)</label>
+                                <input type="number" class="edit-input" id="edit-recipe-price" value="${pricePerPortion || ''}" min="0" step="0.01" onchange="updateRecipePreview()">
+                            </div>
+                            <div>
+                                <label class="edit-label">Prep Time (minutes)</label>
+                                <input type="number" class="edit-input" id="edit-recipe-prep" value="${recipe.prep_time_minutes || ''}" min="0" step="1">
+                            </div>
+                            <div>
+                                <label class="edit-label">Labor Cost ($)</label>
+                                <input type="number" class="edit-input" id="edit-recipe-labor" value="${recipe.cost_in_wages || ''}" min="0" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                        <button class="save-btn" onclick="saveRecipeEdit()">Save Changes</button>
+                        <button class="cancel-btn" onclick="cancelRecipeEdit()">Cancel</button>
+                    </div>
+                `;
+            } else {
+                // VIEW MODE
+                html = `
+                    <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: start;">
+                        <div>
+                            <h3 style="margin: 0 0 4px 0; font-size: 20px;">${recipe.name}</h3>
+                            ${recipe.concept ? `<div style="color: var(--text-muted); font-size: 13px;">${recipe.concept}</div>` : ''}
+                        </div>
+                        <button class="save-btn" onclick="startRecipeEdit()" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    </div>
+
+                    <div class="grid grid-2" style="margin-bottom: 12px; gap: 12px;">
+                        <div style="background: var(--bg); padding: 12px; border-radius: 6px;">
+                            <div class="card-title" style="margin-bottom: 4px;">Batch Cost</div>
+                            <div style="font-size: 20px; font-weight: 600;">${batchCost ? formatCurrency(batchCost) : '--'}</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Total ingredient cost</div>
+                        </div>
+                        <div style="background: var(--bg); padding: 12px; border-radius: 6px;">
+                            <div class="card-title" style="margin-bottom: 4px;">Batch Revenue</div>
+                            <div style="font-size: 20px; font-weight: 600;">${batchRevenue ? formatCurrency(batchRevenue) : '--'}</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">${pricePerPortion ? formatCurrency(pricePerPortion) : '--'} x ${portions} portions</div>
+                        </div>
+                    </div>
+
+                    <div style="background: ${profitBgColor}; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Batch Profit</span>
+                            <span class="${marginClass}" style="font-size: 18px; font-weight: 600;">
+                                ${batchProfit !== null ? formatCurrency(batchProfit) : '--'}
+                                ${marginPct !== null ? ` (${marginPct.toFixed(1)}%)` : ''}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 16px;">
+                        <div class="card-title" style="margin-bottom: 8px;">Recipe Details</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                            <div>Portions per batch: <strong>${portions}</strong></div>
+                            <div>Price per portion: <strong>${pricePerPortion ? formatCurrency(pricePerPortion) : '--'}</strong></div>
+                            <div>Cost per portion: <strong>${recipe.cost_per_portion ? formatCurrency(recipe.cost_per_portion) : '--'}</strong></div>
+                            <div>Prep Time: <strong>${recipe.prep_time_minutes ? recipe.prep_time_minutes + ' min' : '--'}</strong></div>
+                            <div>Labor Cost: <strong>${recipe.cost_in_wages ? formatCurrency(recipe.cost_in_wages) : '--'}</strong></div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (recipe.ingredients && recipe.ingredients.length > 0) {
+                html += `
+                    <div class="card-title" style="margin-bottom: 8px;">Ingredients (${recipe.ingredients.length})</div>
+                    <table style="font-size: 13px;">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th style="text-align:right">Qty</th>
+                                <th style="text-align:right">Unit Cost</th>
+                                <th style="text-align:right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${recipe.ingredients.map(ing => `
+                                <tr>
+                                    <td>${ing.name}</td>
+                                    <td class="number">${ing.quantity || '--'}</td>
+                                    <td class="number">${ing.unit_cost ? '$' + ing.unit_cost.toFixed(4) : '--'}</td>
+                                    <td class="number">${ing.total_cost ? formatCurrency(ing.total_cost) : '--'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function startRecipeEdit() {
+            editingRecipe = true;
+            const recipe = recipesData.find(r => r.id === selectedRecipeId);
+            if (recipe) {
+                showRecipeDetail(encodeURIComponent(recipe.name), true);
+            }
+        }
+
+        function cancelRecipeEdit() {
+            editingRecipe = false;
+            const recipe = recipesData.find(r => r.id === selectedRecipeId);
+            if (recipe) {
+                showRecipeDetail(encodeURIComponent(recipe.name));
+            }
+        }
+
+        function updateRecipePreview() {
+            // Live preview of batch revenue/profit as user edits
+            const recipe = recipesData.find(r => r.id === selectedRecipeId);
+            if (!recipe) return;
+
+            const batchCost = recipe.cost_per_recipe;
+            const portions = parseInt(document.getElementById('edit-recipe-portions').value) || 1;
+            const price = parseFloat(document.getElementById('edit-recipe-price').value) || 0;
+
+            const batchRevenue = price * portions;
+            const batchProfit = batchCost ? batchRevenue - batchCost : null;
+            const marginPct = batchRevenue > 0 && batchCost ? (batchProfit / batchRevenue) * 100 : null;
+
+            const revenueEl = document.getElementById('edit-batch-revenue');
+            const profitEl = document.getElementById('edit-batch-profit');
+
+            if (revenueEl) revenueEl.textContent = formatCurrency(batchRevenue);
+            if (profitEl) {
+                const marginClass = marginPct !== null && marginPct >= 0 ? 'positive' : 'negative';
+                profitEl.className = marginClass;
+                profitEl.style.fontSize = '18px';
+                profitEl.style.fontWeight = '600';
+                profitEl.textContent = batchProfit !== null
+                    ? `${formatCurrency(batchProfit)} (${marginPct.toFixed(1)}%)`
+                    : '--';
+            }
+        }
+
+        async function saveRecipeEdit() {
+            const recipe = recipesData.find(r => r.id === selectedRecipeId);
+            if (!recipe) return;
+
+            const updates = {
+                name: document.getElementById('edit-recipe-name').value,
+                concept: document.getElementById('edit-recipe-concept').value,
+                portions: document.getElementById('edit-recipe-portions').value,
+                proposed_sale_price: document.getElementById('edit-recipe-price').value,
+                prep_time_minutes: document.getElementById('edit-recipe-prep').value,
+                cost_in_wages: document.getElementById('edit-recipe-labor').value,
+            };
+
+            try {
+                const res = await fetch(`/api/recipes/${recipe.id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(updates)
+                });
+
+                if (!res.ok) throw new Error('Failed to save');
+
+                const data = await res.json();
+
+                // Update local data
+                const idx = recipesData.findIndex(r => r.id === recipe.id);
+                if (idx >= 0) {
+                    recipesData[idx] = data.recipe;
+                }
+
+                editingRecipe = false;
+                showRecipeDetail(encodeURIComponent(data.recipe.name));
+                loadRecipes();  // Refresh the table to show updated values
+                showToast('Recipe updated', 'success');
+
+            } catch (e) {
+                console.error('Failed to save recipe:', e);
+                showToast('Failed to save changes', 'error');
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
-            // Load accounting data
-            loadSummary();
-            loadMetrics();
-            loadBenchmarks();
-            loadDebtProgress();
-            loadExpenseBreakdown();
-            loadCashFlow();
+            // Load fiscal years and render pills
+            await loadFiscalYears();
+
+            // Load accounting data (for default/most recent year)
+            loadFinancialData();
 
             // Load Square live data
             const squareConnected = await checkSquareStatus();
@@ -1056,6 +2231,10 @@
                 document.getElementById('category-container').innerHTML =
                     '<div class="loading">Square not connected</div>';
             }
+
+            // Load recipe costing data
+            loadRecipes();
+            loadIngredients();
         });
     </script>
 </body>

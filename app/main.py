@@ -7,9 +7,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime, timedelta, date
+from typing import Optional, Any
 import sys
+import time
+import threading
 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -22,6 +24,70 @@ from app.models import (
 )
 from app.config import is_square_configured
 from data.financials import BALANCE_SHEETS, INCOME_STATEMENTS, INDUSTRY_BENCHMARKS
+from data.recipes import (
+    get_ingredients,
+    get_recipes,
+    get_ingredient_by_id,
+    get_recipe_by_id,
+    reload_data as reload_recipe_data,
+    ingredient_to_dict,
+    recipe_to_dict,
+    update_ingredient,
+    add_ingredient,
+    delete_ingredient,
+    update_recipe,
+)
+
+
+# =============================================================================
+# SIMPLE CACHE FOR SQUARE API DATA
+# =============================================================================
+
+class SimpleCache:
+    """Simple in-memory cache with TTL"""
+
+    def __init__(self, default_ttl: int = 300):  # 5 minutes default
+        self._cache: dict[str, dict[str, Any]] = {}
+        self._lock = threading.Lock()
+        self.default_ttl = default_ttl
+
+    def get(self, key: str) -> tuple[Any, float | None]:
+        """Get cached value and timestamp. Returns (None, None) if not cached or expired."""
+        with self._lock:
+            if key not in self._cache:
+                return None, None
+
+            entry = self._cache[key]
+            if time.time() > entry["expires_at"]:
+                del self._cache[key]
+                return None, None
+
+            return entry["data"], entry["cached_at"]
+
+    def set(self, key: str, data: Any, ttl: int | None = None) -> float:
+        """Cache data with TTL. Returns the cached_at timestamp."""
+        ttl = ttl or self.default_ttl
+        cached_at = time.time()
+        with self._lock:
+            self._cache[key] = {
+                "data": data,
+                "cached_at": cached_at,
+                "expires_at": cached_at + ttl,
+            }
+        return cached_at
+
+    def clear(self, key: str | None = None):
+        """Clear specific key or all cache"""
+        with self._lock:
+            if key:
+                self._cache.pop(key, None)
+            else:
+                self._cache.clear()
+
+
+# Global cache instance
+square_cache = SimpleCache(default_ttl=300)  # 5 minute TTL
+
 
 app = FastAPI(
     title="Little Red Coffee - Financial Dashboard",
@@ -95,6 +161,36 @@ def get_benchmark_status(value: float, benchmark: dict) -> str:
     return "warning"
 
 
+def get_fiscal_year_label(period_end: date) -> str:
+    """Get fiscal year label like 'FY24-25' from period end date (Sep 30)"""
+    # Fiscal year ends in September, so FY24-25 ends Sep 30, 2025
+    end_year = period_end.year
+    start_year = end_year - 1
+    return f"FY{str(start_year)[-2:]}-{str(end_year)[-2:]}"
+
+
+def get_period_by_year(statements: list, year_label: str) -> dict | None:
+    """Find a statement by fiscal year label"""
+    for stmt in statements:
+        if get_fiscal_year_label(stmt["period_end"]) == year_label:
+            return stmt
+    return None
+
+
+def get_available_fiscal_years() -> list[dict]:
+    """Get list of available fiscal years from data"""
+    years = []
+    for i, stmt in enumerate(INCOME_STATEMENTS):
+        label = get_fiscal_year_label(stmt["period_end"])
+        years.append({
+            "label": label,
+            "period_start": stmt["period_start"].isoformat(),
+            "period_end": stmt["period_end"].isoformat(),
+            "is_current": i == 0,
+        })
+    return years
+
+
 # =============================================================================
 # API ENDPOINTS
 # =============================================================================
@@ -106,30 +202,58 @@ async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
+@app.get("/api/fiscal-years")
+async def get_fiscal_years():
+    """Get available fiscal years for filtering"""
+    return {"fiscal_years": get_available_fiscal_years()}
+
+
 @app.get("/api/summary")
-async def get_summary():
+async def get_summary(
+    year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
+):
     """Get high-level financial summary"""
-    current_income = INCOME_STATEMENTS[0]
-    previous_income = INCOME_STATEMENTS[1]
-    current_balance = BALANCE_SHEETS[0]
-    previous_balance = BALANCE_SHEETS[1]
+    # Find the requested year or default to most recent
+    if year:
+        current_income = get_period_by_year(INCOME_STATEMENTS, year)
+        current_balance = get_period_by_year(BALANCE_SHEETS, year)
+        if not current_income or not current_balance:
+            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
+        # Find the index to get previous year
+        current_idx = INCOME_STATEMENTS.index(current_income)
+    else:
+        current_income = INCOME_STATEMENTS[0]
+        current_balance = BALANCE_SHEETS[0]
+        current_idx = 0
 
-    # Calculate YoY changes
-    revenue_change = current_income["total_revenue"] - previous_income["total_revenue"]
-    revenue_change_pct = (revenue_change / previous_income["total_revenue"]) * 100
+    # Get previous year for comparison (if available)
+    previous_idx = current_idx + 1
+    has_previous = previous_idx < len(INCOME_STATEMENTS)
 
-    net_income_change = current_income["net_income"] - previous_income["net_income"]
+    if has_previous:
+        previous_income = INCOME_STATEMENTS[previous_idx]
+        previous_balance = BALANCE_SHEETS[previous_idx]
 
-    debt_change = (
-        current_balance["total_liabilities"] - previous_balance["total_liabilities"]
-    )
+        # Calculate YoY changes
+        revenue_change = current_income["total_revenue"] - previous_income["total_revenue"]
+        revenue_change_pct = (revenue_change / previous_income["total_revenue"]) * 100
+        net_income_change = current_income["net_income"] - previous_income["net_income"]
+        debt_change = current_balance["total_liabilities"] - previous_balance["total_liabilities"]
+        cash_change = current_balance["total_cash"] - previous_balance["total_cash"]
+    else:
+        revenue_change = 0
+        revenue_change_pct = 0
+        net_income_change = 0
+        debt_change = 0
+        cash_change = 0
 
-    cash_change = current_balance["total_cash"] - previous_balance["total_cash"]
+    current_fy = get_fiscal_year_label(current_income["period_end"])
 
     return {
         "business_name": "Little Red Coffee Ltd.",
-        "current_period": f"FY {current_income['period_start'].year}-{current_income['period_end'].year}",
-        "previous_period": f"FY {previous_income['period_start'].year}-{previous_income['period_end'].year}",
+        "current_period": current_fy,
+        "previous_period": get_fiscal_year_label(INCOME_STATEMENTS[previous_idx]["period_end"]) if has_previous else None,
+        "has_comparison": has_previous,
         "current": {
             "total_revenue": current_income["total_revenue"],
             "net_income": current_income["net_income"],
@@ -179,24 +303,45 @@ async def get_balance_sheets():
 
 
 @app.get("/api/metrics")
-async def get_metrics():
-    """Get calculated financial metrics for all periods"""
+async def get_metrics(
+    year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
+):
+    """Get calculated financial metrics for a specific or all periods"""
+    if year:
+        income = get_period_by_year(INCOME_STATEMENTS, year)
+        balance = get_period_by_year(BALANCE_SHEETS, year)
+        if not income:
+            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
+        metrics = calculate_metrics(income, balance)
+        metrics["period_label"] = get_fiscal_year_label(income["period_end"])
+        return {"periods": [metrics]}
+
     results = []
     for i, income in enumerate(INCOME_STATEMENTS):
         balance = BALANCE_SHEETS[i] if i < len(BALANCE_SHEETS) else None
         metrics = calculate_metrics(income, balance)
-        metrics["period_label"] = (
-            f"FY {income['period_start'].year}-{income['period_end'].year}"
-        )
+        metrics["period_label"] = get_fiscal_year_label(income["period_end"])
         results.append(metrics)
     return {"periods": results}
 
 
 @app.get("/api/expense-breakdown")
-async def get_expense_breakdown():
+async def get_expense_breakdown(
+    year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
+):
     """Get detailed expense breakdown"""
-    current = INCOME_STATEMENTS[0]
-    previous = INCOME_STATEMENTS[1]
+    if year:
+        current = get_period_by_year(INCOME_STATEMENTS, year)
+        if not current:
+            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
+        current_idx = INCOME_STATEMENTS.index(current)
+    else:
+        current = INCOME_STATEMENTS[0]
+        current_idx = 0
+
+    previous_idx = current_idx + 1
+    has_previous = previous_idx < len(INCOME_STATEMENTS)
+    previous = INCOME_STATEMENTS[previous_idx] if has_previous else None
 
     def build_breakdown(stmt):
         total = stmt["total_expenses"]
@@ -231,23 +376,37 @@ async def get_expense_breakdown():
             "total_expenses": total,
         }
 
-    return {
+    result = {
         "current": {
-            "period": f"FY {current['period_start'].year}-{current['period_end'].year}",
+            "period": get_fiscal_year_label(current["period_end"]),
             **build_breakdown(current),
         },
-        "previous": {
-            "period": f"FY {previous['period_start'].year}-{previous['period_end'].year}",
-            **build_breakdown(previous),
-        },
+        "has_comparison": has_previous,
     }
+
+    if has_previous:
+        result["previous"] = {
+            "period": get_fiscal_year_label(previous["period_end"]),
+            **build_breakdown(previous),
+        }
+
+    return result
 
 
 @app.get("/api/benchmarks")
-async def get_benchmarks():
+async def get_benchmarks(
+    year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
+):
     """Compare your metrics against industry benchmarks"""
-    current_income = INCOME_STATEMENTS[0]
-    current_balance = BALANCE_SHEETS[0]
+    if year:
+        current_income = get_period_by_year(INCOME_STATEMENTS, year)
+        current_balance = get_period_by_year(BALANCE_SHEETS, year)
+        if not current_income:
+            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
+    else:
+        current_income = INCOME_STATEMENTS[0]
+        current_balance = BALANCE_SHEETS[0]
+
     metrics = calculate_metrics(current_income, current_balance)
 
     benchmarks = []
@@ -280,29 +439,41 @@ async def get_benchmarks():
 
 
 @app.get("/api/debt-progress")
-async def get_debt_progress():
+async def get_debt_progress(
+    year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
+):
     """Track debt paydown progress"""
-    current = BALANCE_SHEETS[0]
-    previous = BALANCE_SHEETS[1]
+    if year:
+        current = get_period_by_year(BALANCE_SHEETS, year)
+        if not current:
+            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
+        current_idx = BALANCE_SHEETS.index(current)
+    else:
+        current = BALANCE_SHEETS[0]
+        current_idx = 0
+
+    previous_idx = current_idx + 1
+    has_previous = previous_idx < len(BALANCE_SHEETS)
+    previous = BALANCE_SHEETS[previous_idx] if has_previous else None
 
     loans = [
         {
             "name": "BDC Loan",
             "current": current["bdc_loan"],
-            "previous": previous["bdc_loan"],
-            "paid_down": previous["bdc_loan"] - current["bdc_loan"],
+            "previous": previous["bdc_loan"] if has_previous else 0,
+            "paid_down": (previous["bdc_loan"] - current["bdc_loan"]) if has_previous else 0,
         },
         {
             "name": "CIBC Future Entrepreneur",
             "current": current["cibc_loan"],
-            "previous": previous["cibc_loan"],
-            "paid_down": previous["cibc_loan"] - current["cibc_loan"],
+            "previous": previous["cibc_loan"] if has_previous else 0,
+            "paid_down": (previous["cibc_loan"] - current["cibc_loan"]) if has_previous else 0,
         },
         {
             "name": "Shareholder Loan",
             "current": current["shareholder_loan"],
-            "previous": previous["shareholder_loan"],
-            "paid_down": previous["shareholder_loan"] - current["shareholder_loan"],
+            "previous": previous["shareholder_loan"] if has_previous else 0,
+            "paid_down": (previous["shareholder_loan"] - current["shareholder_loan"]) if has_previous else 0,
         },
     ]
 
@@ -315,17 +486,31 @@ async def get_debt_progress():
         "total_previous": total_previous,
         "total_paid_down": total_previous - total_current,
         "equity_current": current["total_equity"],
-        "equity_previous": previous["total_equity"],
-        "equity_improvement": current["total_equity"] - previous["total_equity"],
+        "equity_previous": previous["total_equity"] if has_previous else 0,
+        "equity_improvement": (current["total_equity"] - previous["total_equity"]) if has_previous else 0,
+        "has_comparison": has_previous,
     }
 
 
 @app.get("/api/cash-flow-health")
-async def get_cash_flow_health():
+async def get_cash_flow_health(
+    year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
+):
     """Analyze cash flow and liquidity"""
-    current_balance = BALANCE_SHEETS[0]
-    previous_balance = BALANCE_SHEETS[1]
-    current_income = INCOME_STATEMENTS[0]
+    if year:
+        current_balance = get_period_by_year(BALANCE_SHEETS, year)
+        current_income = get_period_by_year(INCOME_STATEMENTS, year)
+        if not current_balance or not current_income:
+            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
+        current_idx = BALANCE_SHEETS.index(current_balance)
+    else:
+        current_balance = BALANCE_SHEETS[0]
+        current_income = INCOME_STATEMENTS[0]
+        current_idx = 0
+
+    previous_idx = current_idx + 1
+    has_previous = previous_idx < len(BALANCE_SHEETS)
+    previous_balance = BALANCE_SHEETS[previous_idx] if has_previous else None
 
     monthly_revenue = current_income["total_revenue"] / 12
     monthly_expenses = current_income["total_expenses"] / 12
@@ -338,8 +523,8 @@ async def get_cash_flow_health():
     return {
         "cash": {
             "current": current_balance["total_cash"],
-            "previous": previous_balance["total_cash"],
-            "change": current_balance["total_cash"] - previous_balance["total_cash"],
+            "previous": previous_balance["total_cash"] if has_previous else 0,
+            "change": (current_balance["total_cash"] - previous_balance["total_cash"]) if has_previous else 0,
         },
         "monthly_averages": {
             "revenue": round(monthly_revenue, 2),
@@ -354,6 +539,7 @@ async def get_cash_flow_health():
             ),
             "cash_runway_months": round(cash_runway_months, 1),
         },
+        "has_comparison": has_previous,
     }
 
 
@@ -404,10 +590,26 @@ async def get_labor_data(
 @app.get("/api/square/product-mix")
 async def get_product_mix_data(
     days: int = Query(default=30, ge=1, le=365, description="Number of days to look back"),
+    refresh: bool = Query(default=False, description="Force refresh from Square API"),
 ):
     """Get product mix analysis from Square orders"""
     if not is_square_configured():
         raise HTTPException(status_code=400, detail="Square API not configured")
+
+    cache_key = f"product_mix_{days}"
+
+    # Check cache first (unless refresh requested)
+    if not refresh:
+        cached_data, cached_at = square_cache.get(cache_key)
+        if cached_data is not None:
+            return {
+                **cached_data,
+                "_cache": {
+                    "cached": True,
+                    "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
+                    "age_seconds": int(time.time() - cached_at),
+                }
+            }
 
     try:
         from app.square_client import get_square_api
@@ -416,7 +618,17 @@ async def get_product_mix_data(
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
 
-        return api.get_product_mix(start_date, end_date)
+        data = api.get_product_mix(start_date, end_date)
+        cached_at = square_cache.set(cache_key, data)
+
+        return {
+            **data,
+            "_cache": {
+                "cached": False,
+                "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
+                "age_seconds": 0,
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -443,10 +655,27 @@ async def get_sales_data(
 
 
 @app.get("/api/square/team")
-async def get_team_data():
+async def get_team_data(
+    refresh: bool = Query(default=False, description="Force refresh from Square API"),
+):
     """Get team member data from Square"""
     if not is_square_configured():
         raise HTTPException(status_code=400, detail="Square API not configured")
+
+    cache_key = "team_data"
+
+    # Check cache first (unless refresh requested)
+    if not refresh:
+        cached_data, cached_at = square_cache.get(cache_key)
+        if cached_data is not None:
+            return {
+                **cached_data,
+                "_cache": {
+                    "cached": True,
+                    "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
+                    "age_seconds": int(time.time() - cached_at),
+                }
+            }
 
     try:
         from app.square_client import get_square_api
@@ -455,7 +684,7 @@ async def get_team_data():
         team_members = api.get_team_members()
         jobs = api.get_jobs()
 
-        return {
+        data = {
             "team_members": [
                 {
                     "id": tm["id"],
@@ -474,8 +703,235 @@ async def get_team_data():
                 for job in jobs
             ],
         }
+
+        cached_at = square_cache.set(cache_key, data)
+
+        return {
+            **data,
+            "_cache": {
+                "cached": False,
+                "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
+                "age_seconds": 0,
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/square/refresh")
+async def refresh_square_cache():
+    """Clear Square API cache to force fresh data on next request"""
+    square_cache.clear()
+    return {"status": "ok", "message": "Cache cleared"}
+
+
+# =============================================================================
+# RECIPE COSTING API ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/recipes")
+async def list_recipes(
+    sort_by: str = Query(default="name", regex="^(name|cost|profit|margin)$"),
+):
+    """Get all recipes with costing data"""
+    recipes = get_recipes()
+
+    # Convert to dicts
+    recipe_dicts = [recipe_to_dict(r) for r in recipes]
+
+    # Helper to calculate batch profit correctly:
+    # batch_revenue = price_per_portion × portions
+    # batch_profit = batch_revenue - batch_cost
+    def calc_batch_profit(r):
+        price = r["proposed_sale_price"]
+        cost = r["cost_per_recipe"]
+        portions = r["portions"] or 1
+        if price and cost:
+            return (price * portions) - cost
+        return None
+
+    def calc_batch_margin(r):
+        price = r["proposed_sale_price"]
+        cost = r["cost_per_recipe"]
+        portions = r["portions"] or 1
+        if price and cost:
+            batch_revenue = price * portions
+            batch_profit = batch_revenue - cost
+            return batch_profit / batch_revenue
+        return 0
+
+    # Sort by requested field
+    if sort_by == "name":
+        recipe_dicts.sort(key=lambda r: r["name"].lower())
+    elif sort_by == "cost":
+        recipe_dicts.sort(key=lambda r: r["cost_per_recipe"] or 0, reverse=True)
+    elif sort_by == "profit":
+        recipe_dicts.sort(key=lambda r: calc_batch_profit(r) or 0, reverse=True)
+    elif sort_by == "margin":
+        recipe_dicts.sort(key=calc_batch_margin, reverse=True)
+
+    # Calculate summary stats using correct batch profit
+    total_recipes = len(recipe_dicts)
+    recipes_with_data = [r for r in recipe_dicts if r["proposed_sale_price"] and r["cost_per_recipe"]]
+    profitable = [r for r in recipes_with_data if (calc_batch_profit(r) or 0) > 0]
+    unprofitable = [r for r in recipes_with_data if (calc_batch_profit(r) or 0) <= 0]
+
+    return {
+        "recipes": recipe_dicts,
+        "summary": {
+            "total_recipes": total_recipes,
+            "profitable_count": len(profitable),
+            "unprofitable_count": len(unprofitable),
+            "avg_cost": round(
+                sum(r["cost_per_recipe"] or 0 for r in recipe_dicts) / total_recipes, 2
+            ) if total_recipes else 0,
+            "avg_profit": round(
+                sum(calc_batch_profit(r) or 0 for r in recipes_with_data) / len(recipes_with_data), 2
+            ) if recipes_with_data else 0,
+        },
+    }
+
+
+@app.get("/api/recipes/{recipe_name}")
+async def get_recipe(recipe_name: str):
+    """Get a specific recipe by name"""
+    recipes = get_recipes()
+
+    # Find by exact match first, then case-insensitive
+    for recipe in recipes:
+        if recipe.name == recipe_name:
+            return recipe_to_dict(recipe)
+
+    for recipe in recipes:
+        if recipe.name.lower() == recipe_name.lower():
+            return recipe_to_dict(recipe)
+
+    raise HTTPException(status_code=404, detail=f"Recipe '{recipe_name}' not found")
+
+
+@app.put("/api/recipes/{recipe_id}")
+async def update_single_recipe(recipe_id: str, request: Request):
+    """Update a recipe's editable fields (portions, price, prep time, etc.)"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    result = update_recipe(recipe_id, body)
+    if not result:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    return {"status": "ok", "recipe": result}
+
+
+@app.get("/api/ingredients")
+async def list_ingredients(
+    category: Optional[str] = Query(default=None, description="Filter by category"),
+):
+    """Get all master ingredients from the costing sheet"""
+    ingredients = get_ingredients()
+
+    # Filter by category if specified
+    if category:
+        ingredients = [i for i in ingredients if i.category.lower() == category.lower()]
+
+    # Group by category
+    by_category: dict[str, list] = {}
+    for ing in ingredients:
+        cat = ing.category
+        if cat not in by_category:
+            by_category[cat] = []
+        by_category[cat].append(ingredient_to_dict(ing))
+
+    return {
+        "ingredients": [ingredient_to_dict(i) for i in ingredients],
+        "by_category": by_category,
+        "categories": list(by_category.keys()),
+        "total_count": len(ingredients),
+    }
+
+
+@app.get("/api/ingredients/categories")
+async def get_ingredient_categories():
+    """Get list of ingredient categories"""
+    ingredients = get_ingredients()
+    categories = {}
+    for ing in ingredients:
+        if ing.category not in categories:
+            categories[ing.category] = 0
+        categories[ing.category] += 1
+
+    return {
+        "categories": [
+            {"name": name, "count": count}
+            for name, count in sorted(categories.items())
+        ]
+    }
+
+
+@app.post("/api/recipes/reload")
+async def reload_recipes():
+    """Reload recipes from Excel file"""
+    ing_count, recipe_count = reload_recipe_data()
+    return {
+        "status": "ok",
+        "ingredients_loaded": ing_count,
+        "recipes_loaded": recipe_count,
+    }
+
+
+# =============================================================================
+# INGREDIENT CRUD ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/ingredients/{ingredient_id}")
+async def get_single_ingredient(ingredient_id: str):
+    """Get a single ingredient by ID"""
+    ing = get_ingredient_by_id(ingredient_id)
+    if not ing:
+        raise HTTPException(status_code=404, detail=f"Ingredient not found")
+    return ingredient_to_dict(ing)
+
+
+@app.put("/api/ingredients/{ingredient_id}")
+async def update_single_ingredient(ingredient_id: str, request: Request):
+    """Update an ingredient's fields"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    result = update_ingredient(ingredient_id, body)
+    if not result:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
+
+    return {"status": "ok", "ingredient": result}
+
+
+@app.post("/api/ingredients")
+async def create_ingredient(request: Request):
+    """Create a new ingredient"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    if not body.get("name"):
+        raise HTTPException(status_code=400, detail="Name is required")
+
+    result = add_ingredient(body)
+    return {"status": "ok", "ingredient": result}
+
+
+@app.delete("/api/ingredients/{ingredient_id}")
+async def remove_ingredient(ingredient_id: str):
+    """Delete an ingredient"""
+    success = delete_ingredient(ingredient_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
+    return {"status": "ok", "deleted": ingredient_id}
 
 
 if __name__ == "__main__":
