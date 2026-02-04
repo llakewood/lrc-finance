@@ -36,6 +36,8 @@ from data.recipes import (
     add_ingredient,
     delete_ingredient,
     update_recipe,
+    link_recipe_ingredient,
+    get_unlinked_ingredients,
 )
 
 
@@ -793,6 +795,16 @@ async def list_recipes(
     }
 
 
+@app.get("/api/recipes/unlinked")
+async def get_unlinked_recipe_ingredients():
+    """Get all recipe ingredients that need manual linking to master ingredients"""
+    unlinked = get_unlinked_ingredients()
+    return {
+        "unlinked": unlinked,
+        "count": len(unlinked),
+    }
+
+
 @app.get("/api/recipes/{recipe_name}")
 async def get_recipe(recipe_name: str):
     """Get a specific recipe by name"""
@@ -872,13 +884,44 @@ async def get_ingredient_categories():
 
 @app.post("/api/recipes/reload")
 async def reload_recipes():
-    """Reload recipes from Excel file"""
+    """Reload recipes from JSON files"""
     ing_count, recipe_count = reload_recipe_data()
     return {
         "status": "ok",
         "ingredients_loaded": ing_count,
         "recipes_loaded": recipe_count,
     }
+
+
+@app.post("/api/recipes/{recipe_id}/link-ingredient")
+async def link_ingredient_to_recipe(recipe_id: str, request: Request):
+    """
+    Link a recipe ingredient to a master ingredient.
+    This enables auto-updating of costs when the master ingredient price changes.
+
+    Body: {
+        "ingredient_index": 0,  // Index of the ingredient in the recipe's ingredient list
+        "master_ingredient_id": "abc123..."  // ID of the master ingredient to link to
+    }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    ingredient_index = body.get("ingredient_index")
+    master_ingredient_id = body.get("master_ingredient_id")
+
+    if ingredient_index is None:
+        raise HTTPException(status_code=400, detail="ingredient_index is required")
+    if not master_ingredient_id:
+        raise HTTPException(status_code=400, detail="master_ingredient_id is required")
+
+    result = link_recipe_ingredient(recipe_id, ingredient_index, master_ingredient_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Recipe or ingredient not found")
+
+    return {"status": "ok", "recipe": result}
 
 
 # =============================================================================

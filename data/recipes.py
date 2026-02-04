@@ -1,22 +1,18 @@
 """
 Little Red Coffee - Recipe Costing Data
-Parsed from 'Little Red Coffee - Recipe Costing.xlsx'
-Supports editing and persistence to JSON.
+JSON-based storage with ingredient linking.
+Supports editing, persistence, and auto-recalculation of recipe costs.
 """
 
 from pathlib import Path
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Optional
-import openpyxl
 import json
 import hashlib
 
-EXCEL_FILE = Path(__file__).parent.parent / "inputs" / "Little Red Coffee - Recipe Costing.xlsx"
-EDITS_FILE = Path(__file__).parent.parent / "data" / "ingredient_edits.json"
-RECIPE_EDITS_FILE = Path(__file__).parent.parent / "data" / "recipe_edits.json"
-
-# Sheets to skip (not recipes)
-NON_RECIPE_SHEETS = {"Template", "Menu", "Alcohol", "Drink Recipes", "Costing"}
+DATA_DIR = Path(__file__).parent
+INGREDIENTS_FILE = DATA_DIR / "ingredients.json"
+RECIPES_FILE = DATA_DIR / "recipes.json"
 
 
 def generate_ingredient_id(name: str, category: str) -> str:
@@ -33,10 +29,10 @@ def generate_recipe_id(name: str) -> str:
 
 @dataclass
 class Ingredient:
-    """Master ingredient from the Costing sheet"""
+    """Master ingredient"""
     name: str
     category: str
-    id: str = ""  # Generated from name+category
+    id: str = ""
     cost: Optional[float] = None  # Total cost (e.g., $55 for 5lb bag)
     units: Optional[float] = None  # Units per package (e.g., 100 cups)
     cost_per_unit: Optional[float] = None  # Calculated cost per single unit
@@ -50,21 +46,36 @@ class Ingredient:
         if not self.id:
             self.id = generate_ingredient_id(self.name, self.category)
 
+    def recalculate(self):
+        """Recalculate derived values"""
+        if self.cost is not None and self.units is not None and self.units > 0:
+            self.cost_per_unit = self.cost / self.units
+        else:
+            self.cost_per_unit = None
+
+        if self.unit_sale is not None and self.cost_per_unit is not None:
+            self.unit_profit = self.unit_sale - self.cost_per_unit
+        else:
+            self.unit_profit = None
+
 
 @dataclass
 class RecipeIngredient:
-    """An ingredient used in a recipe"""
+    """An ingredient used in a recipe, linked to master ingredient"""
     name: str
+    ingredient_id: Optional[str] = None  # Link to master ingredient
     quantity: Optional[float] = None
-    unit_cost: Optional[float] = None
+    unit_cost: Optional[float] = None  # Cost per unit at time of recipe (or from linked ingredient)
     total_cost: Optional[float] = None
+    match_confidence: Optional[float] = None
+    match_reason: Optional[str] = None
 
 
 @dataclass
 class Recipe:
     """A recipe with costing information"""
     name: str
-    id: str = ""  # Generated from name
+    id: str = ""
     concept: Optional[str] = None
     submitted_by: Optional[str] = None
     portions: int = 1
@@ -72,10 +83,12 @@ class Recipe:
     proposed_sale_price: Optional[float] = None
     margin_factor: float = 1.66  # 66% margin target
 
-    # Calculated costs
+    # Labor cost
     cost_in_wages: Optional[float] = None
+
+    # Calculated costs (auto-updated)
     cost_per_portion: Optional[float] = None
-    cost_per_recipe: Optional[float] = None
+    cost_per_recipe: Optional[float] = None  # Total batch ingredient cost
     time_and_cogs: Optional[float] = None
     min_sale_price: Optional[float] = None
     profit_per_sale: Optional[float] = None
@@ -87,274 +100,252 @@ class Recipe:
         if not self.id:
             self.id = generate_recipe_id(self.name)
 
+    def recalculate_costs(self, master_ingredients: dict[str, 'Ingredient'] = None):
+        """
+        Recalculate all derived costs.
+        If master_ingredients provided, update unit costs from linked ingredients.
+        """
+        # Update unit costs from linked master ingredients
+        if master_ingredients:
+            for ing in self.ingredients:
+                if ing.ingredient_id and ing.ingredient_id in master_ingredients:
+                    master = master_ingredients[ing.ingredient_id]
+                    if master.cost_per_unit is not None:
+                        ing.unit_cost = master.cost_per_unit
+                        if ing.quantity is not None:
+                            ing.total_cost = ing.quantity * ing.unit_cost
 
-def parse_costing_sheet(wb: openpyxl.Workbook) -> list[Ingredient]:
-    """Parse the master Costing sheet into ingredients"""
-    sheet = wb["Costing"]
-    ingredients = []
-    current_category = "Uncategorized"
+        # Calculate total recipe cost (sum of ingredients)
+        total_cost = 0.0
+        for ing in self.ingredients:
+            if ing.total_cost is not None:
+                total_cost += ing.total_cost
+        self.cost_per_recipe = total_cost if total_cost > 0 else None
 
-    # Skip header row
-    for row in sheet.iter_rows(min_row=2, values_only=True):
-        item_name = row[0]
+        # Calculate cost per portion
+        if self.cost_per_recipe and self.portions:
+            self.cost_per_portion = self.cost_per_recipe / self.portions
+        else:
+            self.cost_per_portion = None
 
-        # Skip empty rows
-        if not item_name:
-            continue
+        # Calculate time and COGS (labor + ingredients)
+        if self.cost_per_recipe is not None:
+            labor = self.cost_in_wages or 0
+            self.time_and_cogs = labor + self.cost_per_recipe
 
-        # Check if this is a category header (no cost data)
-        cost = row[2]
-        units = row[3]
+        # Calculate min sale price based on margin factor
+        if self.time_and_cogs and self.margin_factor and self.portions:
+            self.min_sale_price = (self.time_and_cogs / self.portions) * self.margin_factor
 
-        # Category rows have a name but no cost/units
-        if cost is None and units is None:
-            current_category = str(item_name).strip()
-            continue
-
-        # Parse numeric values safely
-        def safe_float(val) -> Optional[float]:
-            if val is None:
-                return None
-            try:
-                return float(val)
-            except (ValueError, TypeError):
-                return None
-
-        ingredient = Ingredient(
-            name=str(item_name).strip(),
-            category=current_category,
-            cost=safe_float(row[2]),
-            units=safe_float(row[3]),
-            cost_per_unit=safe_float(row[4]),
-            unit_sale=safe_float(row[5]),
-            unit_profit=safe_float(row[6]),
-            case_profit=safe_float(row[7]),
-            supplier=str(row[8]).strip() if row[8] else None,
-            notes=str(row[1]).strip() if row[1] else None,
-        )
-        ingredients.append(ingredient)
-
-    return ingredients
+        # Calculate profit per sale
+        if self.proposed_sale_price and self.cost_per_portion is not None:
+            labor_per_portion = (self.cost_in_wages or 0) / self.portions if self.portions else 0
+            self.profit_per_sale = self.proposed_sale_price - self.cost_per_portion - labor_per_portion
 
 
-def parse_recipe_sheet(sheet) -> Optional[Recipe]:
-    """Parse a single recipe sheet"""
-    try:
-        # Read all rows at once for efficiency
-        rows = list(sheet.iter_rows(min_row=1, max_row=15, values_only=True))
+# =============================================================================
+# DATA LOADING AND CACHING
+# =============================================================================
 
-        if len(rows) < 3:
-            return None
-
-        def safe_float(val) -> Optional[float]:
-            if val is None:
-                return None
-            try:
-                return float(val)
-            except (ValueError, TypeError):
-                return None
-
-        def safe_str(val) -> Optional[str]:
-            if val is None:
-                return None
-            return str(val).strip()
-
-        # Extract recipe metadata
-        # Row 0: (Recipe name, [name], ..., Ingredients header...)
-        # Row 1: (Concept, [concept], ..., first ingredient...)
-        recipe_name = safe_str(rows[0][1]) if len(rows[0]) > 1 else sheet.title
-        concept = safe_str(rows[1][1]) if len(rows) > 1 and len(rows[1]) > 1 else None
-        submitted_by = safe_str(rows[2][1]) if len(rows) > 2 and len(rows[2]) > 1 else None
-
-        # Row 3: Date, _, Number of Portions, [portions]
-        portions = safe_float(rows[3][3]) if len(rows) > 3 and len(rows[3]) > 3 else 1
-        portions = int(portions) if portions else 1
-
-        # Row 4: Cuisine, _, Prep Time, [time]
-        prep_time = safe_float(rows[4][3]) if len(rows) > 4 and len(rows[4]) > 3 else None
-
-        # Row 5: Category, _, Proposed sale price, [price]
-        sale_price = safe_float(rows[5][3]) if len(rows) > 5 and len(rows[5]) > 3 else None
-
-        # Row 6: Prep area, _, Margin, [margin]
-        margin = safe_float(rows[6][3]) if len(rows) > 6 and len(rows[6]) > 3 else 1.66
-
-        # Row 7: Cost in wages, [wage_cost], Min sale price, [min_price]
-        cost_wages = safe_float(rows[7][1]) if len(rows) > 7 and len(rows[7]) > 1 else None
-        min_sale = safe_float(rows[7][3]) if len(rows) > 7 and len(rows[7]) > 3 else None
-
-        # Row 8: Cost per portion, [cost]
-        cost_portion = safe_float(rows[8][1]) if len(rows) > 8 and len(rows[8]) > 1 else None
-
-        # Row 9: Cost per recipe, [cost]
-        cost_recipe = safe_float(rows[9][1]) if len(rows) > 9 and len(rows[9]) > 1 else None
-
-        # Row 10: Time and COGS, [total], Profit per sale, [profit]
-        time_cogs = safe_float(rows[10][1]) if len(rows) > 10 and len(rows[10]) > 1 else None
-        profit_sale = safe_float(rows[10][3]) if len(rows) > 10 and len(rows[10]) > 3 else None
-
-        # Parse ingredients (columns F-K, starting row 2)
-        # F(5): Ingredient name, G(6): Quantity, H(7): Unit Cost, K(10): Total Cost
-        ingredients = []
-        for row in rows[1:12]:  # Ingredients are in rows 2-12 (0-indexed: 1-11)
-            if len(row) > 5 and row[5]:
-                ing_name = safe_str(row[5])
-                if ing_name and ing_name not in ("Ingredients", "0", "$0.00"):
-                    ing = RecipeIngredient(
-                        name=ing_name,
-                        quantity=safe_float(row[6]) if len(row) > 6 else None,
-                        unit_cost=safe_float(row[7]) if len(row) > 7 else None,
-                        total_cost=safe_float(row[10]) if len(row) > 10 else None,
-                    )
-                    ingredients.append(ing)
-
-        return Recipe(
-            name=recipe_name or sheet.title,
-            concept=concept,
-            submitted_by=submitted_by,
-            portions=portions,
-            prep_time_minutes=prep_time,
-            proposed_sale_price=sale_price,
-            margin_factor=margin or 1.66,
-            cost_in_wages=cost_wages,
-            cost_per_portion=cost_portion,
-            cost_per_recipe=cost_recipe,
-            time_and_cogs=time_cogs,
-            min_sale_price=min_sale,
-            profit_per_sale=profit_sale,
-            ingredients=ingredients,
-        )
-    except Exception as e:
-        print(f"Error parsing recipe sheet {sheet.title}: {e}")
-        return None
-
-
-def load_all_data() -> tuple[list[Ingredient], list[Recipe]]:
-    """Load all ingredients and recipes from the Excel file"""
-    if not EXCEL_FILE.exists():
-        return [], []
-
-    wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
-
-    # Parse master ingredients
-    ingredients = parse_costing_sheet(wb)
-
-    # Parse all recipe sheets
-    recipes = []
-    for sheet_name in wb.sheetnames:
-        if sheet_name not in NON_RECIPE_SHEETS:
-            recipe = parse_recipe_sheet(wb[sheet_name])
-            if recipe:
-                recipes.append(recipe)
-
-    wb.close()
-    return ingredients, recipes
-
-
-# Cached data (loaded once)
 _ingredients: list[Ingredient] = []
+_ingredients_by_id: dict[str, Ingredient] = {}
 _recipes: list[Recipe] = []
 _loaded = False
 
 
+def _load_ingredients_from_json() -> list[Ingredient]:
+    """Load ingredients from JSON file"""
+    if not INGREDIENTS_FILE.exists():
+        return []
+
+    with open(INGREDIENTS_FILE, 'r') as f:
+        data = json.load(f)
+
+    ingredients = []
+    for item in data:
+        ing = Ingredient(
+            id=item.get('id', ''),
+            name=item.get('name', ''),
+            category=item.get('category', 'Uncategorized'),
+            cost=item.get('cost'),
+            units=item.get('units'),
+            cost_per_unit=item.get('cost_per_unit'),
+            unit_sale=item.get('unit_sale'),
+            unit_profit=item.get('unit_profit'),
+            case_profit=item.get('case_profit'),
+            supplier=item.get('supplier'),
+            notes=item.get('notes'),
+        )
+        ing.recalculate()
+        ingredients.append(ing)
+
+    return ingredients
+
+
+def _load_recipes_from_json() -> list[Recipe]:
+    """Load recipes from JSON file"""
+    if not RECIPES_FILE.exists():
+        return []
+
+    with open(RECIPES_FILE, 'r') as f:
+        data = json.load(f)
+
+    recipes = []
+    for item in data:
+        # Parse ingredients
+        ingredients = []
+        for ing_data in item.get('ingredients', []):
+            ing = RecipeIngredient(
+                name=ing_data.get('name', ''),
+                ingredient_id=ing_data.get('ingredient_id'),
+                quantity=ing_data.get('quantity'),
+                unit_cost=ing_data.get('unit_cost'),
+                total_cost=ing_data.get('total_cost'),
+                match_confidence=ing_data.get('match_confidence'),
+                match_reason=ing_data.get('match_reason'),
+            )
+            ingredients.append(ing)
+
+        recipe = Recipe(
+            id=item.get('id', ''),
+            name=item.get('name', ''),
+            concept=item.get('concept'),
+            submitted_by=item.get('submitted_by'),
+            portions=item.get('portions', 1),
+            prep_time_minutes=item.get('prep_time_minutes'),
+            proposed_sale_price=item.get('proposed_sale_price'),
+            margin_factor=item.get('margin_factor', 1.66),
+            cost_in_wages=item.get('cost_in_wages'),
+            cost_per_portion=item.get('cost_per_portion'),
+            cost_per_recipe=item.get('cost_per_recipe'),
+            time_and_cogs=item.get('time_and_cogs'),
+            min_sale_price=item.get('min_sale_price'),
+            profit_per_sale=item.get('profit_per_sale'),
+            ingredients=ingredients,
+        )
+        recipes.append(recipe)
+
+    return recipes
+
+
+def _save_ingredients():
+    """Save ingredients to JSON file"""
+    data = []
+    for ing in _ingredients:
+        data.append({
+            'id': ing.id,
+            'name': ing.name,
+            'category': ing.category,
+            'cost': ing.cost,
+            'units': ing.units,
+            'cost_per_unit': round(ing.cost_per_unit, 4) if ing.cost_per_unit else None,
+            'unit_sale': ing.unit_sale,
+            'unit_profit': round(ing.unit_profit, 2) if ing.unit_profit else None,
+            'case_profit': ing.case_profit,
+            'supplier': ing.supplier,
+            'notes': ing.notes,
+        })
+
+    with open(INGREDIENTS_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+def _save_recipes():
+    """Save recipes to JSON file"""
+    data = []
+    for recipe in _recipes:
+        recipe_data = {
+            'id': recipe.id,
+            'name': recipe.name,
+            'concept': recipe.concept,
+            'submitted_by': recipe.submitted_by,
+            'portions': recipe.portions,
+            'prep_time_minutes': recipe.prep_time_minutes,
+            'proposed_sale_price': recipe.proposed_sale_price,
+            'margin_factor': recipe.margin_factor,
+            'cost_in_wages': round(recipe.cost_in_wages, 2) if recipe.cost_in_wages else None,
+            'ingredients': [],
+        }
+
+        for ing in recipe.ingredients:
+            recipe_data['ingredients'].append({
+                'name': ing.name,
+                'ingredient_id': ing.ingredient_id,
+                'quantity': ing.quantity,
+                'unit_cost': round(ing.unit_cost, 4) if ing.unit_cost else None,
+                'total_cost': round(ing.total_cost, 2) if ing.total_cost else None,
+                'match_confidence': ing.match_confidence,
+                'match_reason': ing.match_reason,
+            })
+
+        data.append(recipe_data)
+
+    with open(RECIPES_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+def _ensure_loaded():
+    """Ensure data is loaded"""
+    global _ingredients, _ingredients_by_id, _recipes, _loaded
+    if not _loaded:
+        _ingredients = _load_ingredients_from_json()
+        _ingredients_by_id = {ing.id: ing for ing in _ingredients}
+        _recipes = _load_recipes_from_json()
+
+        # Recalculate all recipe costs with current ingredient prices
+        for recipe in _recipes:
+            recipe.recalculate_costs(_ingredients_by_id)
+
+        _loaded = True
+
+
 def get_ingredients() -> list[Ingredient]:
     """Get all master ingredients (cached)"""
-    global _ingredients, _recipes, _loaded
-    if not _loaded:
-        _ingredients, _recipes = load_all_data()
-        _apply_saved_edits()
-        _apply_saved_recipe_edits()
-        _loaded = True
+    _ensure_loaded()
     return _ingredients
 
 
 def get_recipes() -> list[Recipe]:
     """Get all recipes (cached)"""
-    global _ingredients, _recipes, _loaded
-    if not _loaded:
-        _ingredients, _recipes = load_all_data()
-        _apply_saved_edits()
-        _apply_saved_recipe_edits()
-        _loaded = True
+    _ensure_loaded()
     return _recipes
 
 
 def reload_data():
-    """Force reload data from Excel file"""
-    global _ingredients, _recipes, _loaded
-    _ingredients, _recipes = load_all_data()
-    _apply_saved_edits()
-    _apply_saved_recipe_edits()
+    """Force reload data from JSON files"""
+    global _ingredients, _ingredients_by_id, _recipes, _loaded
+    _ingredients = _load_ingredients_from_json()
+    _ingredients_by_id = {ing.id: ing for ing in _ingredients}
+    _recipes = _load_recipes_from_json()
+
+    for recipe in _recipes:
+        recipe.recalculate_costs(_ingredients_by_id)
+
     _loaded = True
     return len(_ingredients), len(_recipes)
 
 
 # =============================================================================
-# INGREDIENT EDITING
+# INGREDIENT OPERATIONS
 # =============================================================================
 
 
-def _load_edits() -> dict:
-    """Load saved ingredient edits from JSON file"""
-    if EDITS_FILE.exists():
-        try:
-            with open(EDITS_FILE, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            return {}
-    return {}
-
-
-def _save_edits(edits: dict):
-    """Save ingredient edits to JSON file"""
-    EDITS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(EDITS_FILE, "w") as f:
-        json.dump(edits, f, indent=2)
-
-
-def _apply_saved_edits():
-    """Apply saved edits to loaded ingredients"""
-    global _ingredients
-    edits = _load_edits()
-    if not edits:
-        return
-
-    for ing in _ingredients:
-        if ing.id in edits:
-            edit = edits[ing.id]
-            # Apply each edited field
-            for field_name, value in edit.items():
-                if field_name != "id" and hasattr(ing, field_name):
-                    setattr(ing, field_name, value)
-            # Recalculate cost_per_unit if cost or units changed
-            if ing.cost is not None and ing.units is not None and ing.units > 0:
-                ing.cost_per_unit = ing.cost / ing.units
-            # Recalculate unit_profit if we have the data
-            if ing.unit_sale is not None and ing.cost_per_unit is not None:
-                ing.unit_profit = ing.unit_sale - ing.cost_per_unit
+def get_ingredient_by_id(ingredient_id: str) -> Optional[Ingredient]:
+    """Get a single ingredient by ID"""
+    _ensure_loaded()
+    return _ingredients_by_id.get(ingredient_id)
 
 
 def update_ingredient(ingredient_id: str, updates: dict) -> Optional[dict]:
     """
     Update an ingredient's fields and persist changes.
-    Returns the updated ingredient dict or None if not found.
+    Also recalculates all recipes using this ingredient.
     """
-    global _ingredients
+    _ensure_loaded()
 
-    # Find the ingredient
-    ing = None
-    for i in _ingredients:
-        if i.id == ingredient_id:
-            ing = i
-            break
-
+    ing = _ingredients_by_id.get(ingredient_id)
     if not ing:
         return None
-
-    # Load existing edits
-    edits = _load_edits()
-    if ingredient_id not in edits:
-        edits[ingredient_id] = {}
 
     # Allowed fields to edit
     editable_fields = {"name", "category", "cost", "units", "unit_sale", "supplier", "notes"}
@@ -372,41 +363,23 @@ def update_ingredient(ingredient_id: str, updates: dict) -> Optional[dict]:
                     continue
 
             setattr(ing, field_name, value)
-            edits[ingredient_id][field_name] = value
 
     # Recalculate derived values
-    if ing.cost is not None and ing.units is not None and ing.units > 0:
-        ing.cost_per_unit = ing.cost / ing.units
-    else:
-        ing.cost_per_unit = None
+    ing.recalculate()
 
-    if ing.unit_sale is not None and ing.cost_per_unit is not None:
-        ing.unit_profit = ing.unit_sale - ing.cost_per_unit
-    else:
-        ing.unit_profit = None
+    # Recalculate all recipes that use this ingredient
+    _recalculate_affected_recipes(ingredient_id)
 
-    # Save edits
-    _save_edits(edits)
+    # Save to JSON
+    _save_ingredients()
 
     return ingredient_to_dict(ing)
 
 
-def get_ingredient_by_id(ingredient_id: str) -> Optional[Ingredient]:
-    """Get a single ingredient by ID"""
-    for ing in get_ingredients():
-        if ing.id == ingredient_id:
-            return ing
-    return None
-
-
 def add_ingredient(data: dict) -> dict:
     """Add a new ingredient"""
-    global _ingredients
+    _ensure_loaded()
 
-    # Ensure ingredients are loaded
-    get_ingredients()
-
-    # Create new ingredient
     ing = Ingredient(
         name=data.get("name", "New Ingredient"),
         category=data.get("category", "Uncategorized"),
@@ -416,121 +389,64 @@ def add_ingredient(data: dict) -> dict:
         supplier=data.get("supplier"),
         notes=data.get("notes"),
     )
-
-    # Calculate derived values
-    if ing.cost is not None and ing.units is not None and ing.units > 0:
-        ing.cost_per_unit = ing.cost / ing.units
-    if ing.unit_sale is not None and ing.cost_per_unit is not None:
-        ing.unit_profit = ing.unit_sale - ing.cost_per_unit
+    ing.recalculate()
 
     _ingredients.append(ing)
-
-    # Save as an edit (so it persists)
-    edits = _load_edits()
-    edits[ing.id] = {
-        "name": ing.name,
-        "category": ing.category,
-        "cost": ing.cost,
-        "units": ing.units,
-        "unit_sale": ing.unit_sale,
-        "supplier": ing.supplier,
-        "notes": ing.notes,
-        "_is_new": True,  # Flag to indicate this is a user-added ingredient
-    }
-    _save_edits(edits)
+    _ingredients_by_id[ing.id] = ing
+    _save_ingredients()
 
     return ingredient_to_dict(ing)
 
 
 def delete_ingredient(ingredient_id: str) -> bool:
-    """Delete an ingredient (mark as deleted in edits)"""
-    global _ingredients
+    """Delete an ingredient"""
+    _ensure_loaded()
 
-    # Find and remove from list
     for i, ing in enumerate(_ingredients):
         if ing.id == ingredient_id:
             _ingredients.pop(i)
-
-            # Mark as deleted in edits
-            edits = _load_edits()
-            edits[ingredient_id] = {"_deleted": True}
-            _save_edits(edits)
+            del _ingredients_by_id[ingredient_id]
+            _save_ingredients()
             return True
 
     return False
 
 
-# =============================================================================
-# RECIPE EDITING
-# =============================================================================
-
-
-def _load_recipe_edits() -> dict:
-    """Load saved recipe edits from JSON file"""
-    if RECIPE_EDITS_FILE.exists():
-        try:
-            with open(RECIPE_EDITS_FILE, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            return {}
-    return {}
-
-
-def _save_recipe_edits(edits: dict):
-    """Save recipe edits to JSON file"""
-    RECIPE_EDITS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(RECIPE_EDITS_FILE, "w") as f:
-        json.dump(edits, f, indent=2)
-
-
-def _apply_saved_recipe_edits():
-    """Apply saved edits to loaded recipes"""
-    global _recipes
-    edits = _load_recipe_edits()
-    if not edits:
-        return
-
+def _recalculate_affected_recipes(ingredient_id: str):
+    """Recalculate costs for all recipes using a specific ingredient"""
     for recipe in _recipes:
-        if recipe.id in edits:
-            edit = edits[recipe.id]
-            # Apply each edited field
-            for field_name, value in edit.items():
-                if field_name not in ("id", "_deleted") and hasattr(recipe, field_name):
-                    setattr(recipe, field_name, value)
-            # Recalculate cost_per_portion if portions changed
-            if recipe.cost_per_recipe and recipe.portions:
-                recipe.cost_per_portion = recipe.cost_per_recipe / recipe.portions
+        uses_ingredient = any(
+            ing.ingredient_id == ingredient_id
+            for ing in recipe.ingredients
+        )
+        if uses_ingredient:
+            recipe.recalculate_costs(_ingredients_by_id)
+
+    # Save updated recipes
+    _save_recipes()
+
+
+# =============================================================================
+# RECIPE OPERATIONS
+# =============================================================================
 
 
 def get_recipe_by_id(recipe_id: str) -> Optional[Recipe]:
     """Get a single recipe by ID"""
-    for recipe in get_recipes():
+    _ensure_loaded()
+    for recipe in _recipes:
         if recipe.id == recipe_id:
             return recipe
     return None
 
 
 def update_recipe(recipe_id: str, updates: dict) -> Optional[dict]:
-    """
-    Update a recipe's fields and persist changes.
-    Returns the updated recipe dict or None if not found.
-    """
-    global _recipes
+    """Update a recipe's fields and persist changes."""
+    _ensure_loaded()
 
-    # Find the recipe
-    recipe = None
-    for r in _recipes:
-        if r.id == recipe_id:
-            recipe = r
-            break
-
+    recipe = get_recipe_by_id(recipe_id)
     if not recipe:
         return None
-
-    # Load existing edits
-    edits = _load_recipe_edits()
-    if recipe_id not in edits:
-        edits[recipe_id] = {}
 
     # Allowed fields to edit
     editable_fields = {
@@ -541,7 +457,6 @@ def update_recipe(recipe_id: str, updates: dict) -> Optional[dict]:
     # Apply updates
     for field_name, value in updates.items():
         if field_name in editable_fields:
-            # Convert empty strings to None for numeric fields
             numeric_fields = {"portions", "prep_time_minutes", "proposed_sale_price", "cost_in_wages"}
             if field_name in numeric_fields and value == "":
                 value = None
@@ -555,19 +470,82 @@ def update_recipe(recipe_id: str, updates: dict) -> Optional[dict]:
                     continue
 
             setattr(recipe, field_name, value)
-            edits[recipe_id][field_name] = value
 
-    # Recalculate derived values
-    if recipe.cost_per_recipe and recipe.portions:
-        recipe.cost_per_portion = recipe.cost_per_recipe / recipe.portions
+    # Recalculate costs
+    recipe.recalculate_costs(_ingredients_by_id)
 
-    # Save edits
-    _save_recipe_edits(edits)
+    # Save to JSON
+    _save_recipes()
 
     return recipe_to_dict(recipe)
 
 
-# Helper functions for API serialization
+def link_recipe_ingredient(recipe_id: str, ingredient_index: int, master_ingredient_id: str) -> Optional[dict]:
+    """
+    Link a recipe ingredient to a master ingredient.
+    This enables auto-updating of costs when the master ingredient price changes.
+    """
+    _ensure_loaded()
+
+    recipe = get_recipe_by_id(recipe_id)
+    if not recipe:
+        return None
+
+    if ingredient_index < 0 or ingredient_index >= len(recipe.ingredients):
+        return None
+
+    master = _ingredients_by_id.get(master_ingredient_id)
+    if not master:
+        return None
+
+    # Update the link
+    recipe_ing = recipe.ingredients[ingredient_index]
+    recipe_ing.ingredient_id = master_ingredient_id
+    recipe_ing.match_confidence = 1.0
+    recipe_ing.match_reason = 'manual'
+
+    # Update cost from master
+    if master.cost_per_unit is not None:
+        recipe_ing.unit_cost = master.cost_per_unit
+        if recipe_ing.quantity is not None:
+            recipe_ing.total_cost = recipe_ing.quantity * recipe_ing.unit_cost
+
+    # Recalculate recipe costs
+    recipe.recalculate_costs(_ingredients_by_id)
+
+    # Save
+    _save_recipes()
+
+    return recipe_to_dict(recipe)
+
+
+def get_unlinked_ingredients() -> list[dict]:
+    """Get all recipe ingredients that aren't linked to a master ingredient"""
+    _ensure_loaded()
+
+    unlinked = []
+    for recipe in _recipes:
+        for i, ing in enumerate(recipe.ingredients):
+            if not ing.ingredient_id or (ing.match_confidence and ing.match_confidence < 0.8):
+                unlinked.append({
+                    'recipe_id': recipe.id,
+                    'recipe_name': recipe.name,
+                    'ingredient_index': i,
+                    'ingredient_name': ing.name,
+                    'unit_cost': ing.unit_cost,
+                    'linked_id': ing.ingredient_id,
+                    'confidence': ing.match_confidence,
+                    'reason': ing.match_reason,
+                })
+
+    return unlinked
+
+
+# =============================================================================
+# SERIALIZATION HELPERS
+# =============================================================================
+
+
 def ingredient_to_dict(ing: Ingredient) -> dict:
     return {
         "id": ing.id,
@@ -603,9 +581,12 @@ def recipe_to_dict(recipe: Recipe) -> dict:
         "ingredients": [
             {
                 "name": ing.name,
+                "ingredient_id": ing.ingredient_id,
                 "quantity": ing.quantity,
                 "unit_cost": round(ing.unit_cost, 4) if ing.unit_cost else None,
                 "total_cost": round(ing.total_cost, 2) if ing.total_cost else None,
+                "match_confidence": ing.match_confidence,
+                "match_reason": ing.match_reason,
             }
             for ing in recipe.ingredients
         ],
@@ -613,18 +594,13 @@ def recipe_to_dict(recipe: Recipe) -> dict:
 
 
 if __name__ == "__main__":
-    # Test the parser
-    ingredients, recipes = load_all_data()
+    # Test loading
+    ingredients = get_ingredients()
+    recipes = get_recipes()
     print(f"Loaded {len(ingredients)} ingredients and {len(recipes)} recipes")
 
-    print("\n=== SAMPLE INGREDIENTS ===")
-    for ing in ingredients[:5]:
-        print(f"  {ing.name}: ${ing.cost_per_unit:.4f}/unit" if ing.cost_per_unit else f"  {ing.name}: no cost data")
-
-    print("\n=== SAMPLE RECIPES ===")
-    for recipe in recipes[:3]:
-        print(f"\n  {recipe.name}")
-        print(f"    Sale: ${recipe.proposed_sale_price}, Cost: ${recipe.cost_per_recipe}, Profit: ${recipe.profit_per_sale}")
-        print(f"    Ingredients: {len(recipe.ingredients)}")
-        for ing in recipe.ingredients[:3]:
-            print(f"      - {ing.name}: qty={ing.quantity}, cost=${ing.total_cost}")
+    # Show unlinked ingredients
+    unlinked = get_unlinked_ingredients()
+    print(f"\nUnlinked ingredients: {len(unlinked)}")
+    for item in unlinked[:5]:
+        print(f"  {item['recipe_name']}: {item['ingredient_name']}")

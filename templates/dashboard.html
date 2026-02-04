@@ -762,6 +762,112 @@
             }
         }
 
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 8px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-body {
+            padding: 16px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .link-item {
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .link-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .link-item-recipe {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .link-item-name {
+            font-weight: 600;
+        }
+
+        .link-select {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 13px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .link-status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .link-status.linked {
+            background: var(--success);
+        }
+
+        .link-status.unlinked {
+            background: var(--warning);
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .grid-2, .grid-3 {
@@ -1040,6 +1146,21 @@
 
         <!-- Tab 3: Recipe Costing -->
         <div class="tab-panel" id="tab-recipes">
+
+        <!-- Unlinked Ingredients Alert -->
+        <div id="unlinked-alert" class="card" style="display: none; background: #fff3cd; border-left: 4px solid #ffc107; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>Ingredient Linking Needed</strong>
+                    <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                        <span id="unlinked-count">0</span> recipe ingredients need to be linked to master ingredients for accurate cost tracking.
+                    </div>
+                </div>
+                <button class="save-btn" onclick="showLinkingModal()" style="padding: 8px 16px;">
+                    Review &amp; Link
+                </button>
+            </div>
+        </div>
 
         <!-- Recipe Summary Cards -->
         <div class="grid grid-4" id="recipe-summary-cards">
@@ -1681,6 +1802,146 @@
         // =====================================================================
 
         let recipesData = [];  // Cache for recipe data
+        let ingredientsData = [];  // Cache for ingredients data
+        let unlinkedData = [];  // Cache for unlinked ingredients
+
+        // Load unlinked ingredients and show alert if any
+        async function loadUnlinkedIngredients() {
+            try {
+                const res = await fetch('/api/recipes/unlinked');
+                const data = await res.json();
+                unlinkedData = data.unlinked;
+
+                const alertEl = document.getElementById('unlinked-alert');
+                const countEl = document.getElementById('unlinked-count');
+
+                if (data.count > 0) {
+                    countEl.textContent = data.count;
+                    alertEl.style.display = 'block';
+                } else {
+                    alertEl.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Failed to load unlinked ingredients:', e);
+            }
+        }
+
+        function showLinkingModal() {
+            const modal = document.getElementById('linking-modal');
+            const body = document.getElementById('linking-modal-body');
+            modal.classList.add('active');
+
+            if (unlinkedData.length === 0) {
+                body.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">All ingredients are linked!</div>';
+                return;
+            }
+
+            // Group by recipe for better UX
+            const byRecipe = {};
+            unlinkedData.forEach(item => {
+                if (!byRecipe[item.recipe_name]) {
+                    byRecipe[item.recipe_name] = [];
+                }
+                byRecipe[item.recipe_name].push(item);
+            });
+
+            let html = `
+                <p style="margin-bottom: 16px; color: var(--text-muted);">
+                    Select a master ingredient to link each recipe ingredient. This enables automatic cost updates when ingredient prices change.
+                </p>
+            `;
+
+            for (const [recipeName, items] of Object.entries(byRecipe)) {
+                html += `<div style="margin-bottom: 16px;">
+                    <div style="font-weight: 600; margin-bottom: 8px; font-size: 14px;">${recipeName}</div>`;
+
+                items.forEach(item => {
+                    const suggestion = item.linked_id ? ingredientsData.find(i => i.id === item.linked_id) : null;
+                    const suggestionText = suggestion ? `Suggested: ${suggestion.name}` : '';
+
+                    html += `
+                        <div class="link-item">
+                            <div class="link-item-header">
+                                <span class="link-item-name">
+                                    <span class="link-status unlinked"></span>
+                                    ${item.ingredient_name}
+                                    ${item.unit_cost ? `<span style="color: var(--text-muted); font-size: 12px;">($${item.unit_cost.toFixed(4)}/unit)</span>` : ''}
+                                </span>
+                                ${item.confidence ? `<span style="font-size: 11px; color: var(--text-muted);">${(item.confidence * 100).toFixed(0)}% match</span>` : ''}
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <select class="link-select" id="link-${item.recipe_id}-${item.ingredient_index}" data-recipe="${item.recipe_id}" data-index="${item.ingredient_index}">
+                                    <option value="">-- Select master ingredient --</option>
+                                    ${ingredientsData.map(ing =>
+                                        `<option value="${ing.id}" ${ing.id === item.linked_id ? 'selected' : ''}>
+                                            ${ing.name} (${ing.category}) ${ing.cost_per_unit ? '- $' + ing.cost_per_unit.toFixed(4) + '/unit' : ''}
+                                        </option>`
+                                    ).join('')}
+                                </select>
+                                <button class="save-btn" onclick="linkIngredient('${item.recipe_id}', ${item.ingredient_index})" style="padding: 6px 12px; white-space: nowrap;">
+                                    Link
+                                </button>
+                            </div>
+                            ${suggestionText ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">${suggestionText}</div>` : ''}
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+            }
+
+            body.innerHTML = html;
+        }
+
+        function closeLinkingModal() {
+            document.getElementById('linking-modal').classList.remove('active');
+        }
+
+        async function linkIngredient(recipeId, ingredientIndex) {
+            const selectEl = document.getElementById(`link-${recipeId}-${ingredientIndex}`);
+            const masterId = selectEl.value;
+
+            if (!masterId) {
+                alert('Please select a master ingredient');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/recipes/${recipeId}/link-ingredient`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ingredient_index: ingredientIndex,
+                        master_ingredient_id: masterId
+                    })
+                });
+
+                if (!res.ok) {
+                    throw new Error('Failed to link ingredient');
+                }
+
+                // Update the UI to show success
+                const linkItem = selectEl.closest('.link-item');
+                const statusEl = linkItem.querySelector('.link-status');
+                statusEl.classList.remove('unlinked');
+                statusEl.classList.add('linked');
+
+                // Refresh data
+                await Promise.all([
+                    loadRecipes(),
+                    loadUnlinkedIngredients()
+                ]);
+
+                // Update the modal if still open
+                if (document.getElementById('linking-modal').classList.contains('active')) {
+                    showLinkingModal();
+                }
+
+            } catch (e) {
+                console.error('Failed to link ingredient:', e);
+                alert('Failed to link ingredient. Please try again.');
+            }
+        }
 
         async function loadRecipes() {
             try {
@@ -1733,7 +1994,6 @@
             }
         }
 
-        let ingredientsData = [];  // Cache for ingredients
         let editingIngredientId = null;  // Currently editing ingredient
         let selectedRecipeId = null;  // Currently selected recipe
         let editingRecipe = false;  // Whether we're in recipe edit mode
@@ -2097,8 +2357,14 @@
             }
 
             if (recipe.ingredients && recipe.ingredients.length > 0) {
+                const linkedCount = recipe.ingredients.filter(i => i.ingredient_id && i.match_confidence >= 0.8).length;
+                const needsLinking = recipe.ingredients.length - linkedCount;
+
                 html += `
-                    <div class="card-title" style="margin-bottom: 8px;">Ingredients (${recipe.ingredients.length})</div>
+                    <div class="card-title" style="margin-bottom: 8px;">
+                        Ingredients (${recipe.ingredients.length})
+                        ${needsLinking > 0 ? `<span style="font-size: 11px; color: var(--warning); font-weight: normal; margin-left: 8px;">${needsLinking} need linking</span>` : ''}
+                    </div>
                     <table style="font-size: 13px;">
                         <thead>
                             <tr>
@@ -2109,14 +2375,20 @@
                             </tr>
                         </thead>
                         <tbody>
-                            ${recipe.ingredients.map(ing => `
+                            ${recipe.ingredients.map(ing => {
+                                const isLinked = ing.ingredient_id && ing.match_confidence >= 0.8;
+                                const statusClass = isLinked ? 'linked' : 'unlinked';
+                                return `
                                 <tr>
-                                    <td>${ing.name}</td>
+                                    <td>
+                                        <span class="link-status ${statusClass}" title="${isLinked ? 'Linked to master ingredient' : 'Needs linking'}"></span>
+                                        ${ing.name}
+                                    </td>
                                     <td class="number">${ing.quantity || '--'}</td>
                                     <td class="number">${ing.unit_cost ? '$' + ing.unit_cost.toFixed(4) : '--'}</td>
                                     <td class="number">${ing.total_cost ? formatCurrency(ing.total_cost) : '--'}</td>
                                 </tr>
-                            `).join('')}
+                            `}).join('')}
                         </tbody>
                     </table>
                 `;
@@ -2235,7 +2507,21 @@
             // Load recipe costing data
             loadRecipes();
             loadIngredients();
+            loadUnlinkedIngredients();
         });
     </script>
+
+    <!-- Ingredient Linking Modal -->
+    <div class="modal-overlay" id="linking-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Link Recipe Ingredients</h3>
+                <button class="modal-close" onclick="closeLinkingModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="linking-modal-body">
+                <div class="loading">Loading unlinked ingredients...</div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
