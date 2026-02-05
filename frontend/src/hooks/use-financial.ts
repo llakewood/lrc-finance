@@ -9,6 +9,8 @@ import {
   getExpenseBreakdown,
   getBenchmarks,
   getDebtProgress,
+  getMetrics,
+  getCashFlowHealth,
 } from '../lib/api'
 
 export const financialKeys = {
@@ -18,6 +20,8 @@ export const financialKeys = {
   expenses: (fiscalYear?: string) => [...financialKeys.all, 'expenses', fiscalYear] as const,
   benchmarks: (fiscalYear?: string) => [...financialKeys.all, 'benchmarks', fiscalYear] as const,
   debt: (fiscalYear?: string) => [...financialKeys.all, 'debt', fiscalYear] as const,
+  metrics: (fiscalYear?: string) => [...financialKeys.all, 'metrics', fiscalYear] as const,
+  cashFlow: (fiscalYear?: string) => [...financialKeys.all, 'cashFlow', fiscalYear] as const,
 }
 
 export function useFiscalYears() {
@@ -52,5 +56,19 @@ export function useDebtProgress(fiscalYear?: string) {
   return useQuery({
     queryKey: financialKeys.debt(fiscalYear),
     queryFn: () => getDebtProgress(fiscalYear),
+  })
+}
+
+export function useMetrics(fiscalYear?: string) {
+  return useQuery({
+    queryKey: financialKeys.metrics(fiscalYear),
+    queryFn: () => getMetrics(fiscalYear),
+  })
+}
+
+export function useCashFlowHealth(fiscalYear?: string) {
+  return useQuery({
+    queryKey: financialKeys.cashFlow(fiscalYear),
+    queryFn: () => getCashFlowHealth(fiscalYear),
   })
 }

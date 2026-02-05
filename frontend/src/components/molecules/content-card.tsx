@@ -71,6 +71,31 @@ const CardFooter = React.forwardRef<
 ))
 CardFooter.displayName = 'CardFooter'
 
+// ContentCard - convenience component for common card patterns
+export interface ContentCardProps extends VariantProps<typeof cardVariants> {
+  title?: string
+  description?: string
+  footer?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+}
+
+const ContentCard = React.forwardRef<HTMLDivElement, ContentCardProps>(
+  ({ title, description, footer, children, className, ...props }, ref) => (
+    <Card ref={ref} className={className} {...props}>
+      {(title || description) && (
+        <CardHeader>
+          {title && <CardTitle>{title}</CardTitle>}
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+      )}
+      <CardContent>{children}</CardContent>
+      {footer && <CardFooter>{footer}</CardFooter>}
+    </Card>
+  )
+)
+ContentCard.displayName = 'ContentCard'
+
 // Re-export Card for convenience when using ContentCard pattern
 export {
   Card,
@@ -79,6 +104,7 @@ export {
   CardDescription,
   CardContent,
   CardFooter,
+  ContentCard,
   cardVariants,
   type CardProps,
 }

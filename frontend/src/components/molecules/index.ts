@@ -5,8 +5,10 @@ export {
   CardDescription,
   CardContent,
   CardFooter,
+  ContentCard,
   cardVariants,
   type CardProps,
+  type ContentCardProps,
 } from './content-card'
 
 export { MetricCard, type MetricCardProps } from './metric-card'
