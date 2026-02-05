@@ -42,6 +42,7 @@ import {
 import {
   useRecipes,
   useUnlinkedIngredients,
+  useUpdateRecipe,
 } from '@/hooks/use-recipes'
 import {
   useIngredients,
@@ -67,12 +68,21 @@ function DashboardContent() {
   const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null)
   const [showAddIngredient, setShowAddIngredient] = useState(false)
   const [showLinkingModal, setShowLinkingModal] = useState(false)
+  const [isEditingRecipe, setIsEditingRecipe] = useState(false)
+  const [recipeEditForm, setRecipeEditForm] = useState({
+    portions: 0,
+    proposed_sale_price: 0,
+    prep_time_minutes: 0,
+    cost_in_wages: 0,
+  })
   const [newIngredient, setNewIngredient] = useState({
     name: '',
     category: '',
     unit: '',
     unit_cost: 0,
   })
+  const [recipeFilter, setRecipeFilter] = useState('')
+  const [ingredientFilter, setIngredientFilter] = useState('')
 
   // Financial data queries
   const { data: fiscalYears, isLoading: yearsLoading } = useFiscalYears()
@@ -94,6 +104,7 @@ function DashboardContent() {
   // Recipe data queries
   const { data: recipes, isLoading: recipesLoading } = useRecipes('profit')
   const { data: unlinkedIngredients } = useUnlinkedIngredients()
+  const updateRecipe = useUpdateRecipe()
 
   // Ingredient data queries
   const { data: ingredients, isLoading: ingredientsLoading } = useIngredients()
@@ -187,6 +198,26 @@ function DashboardContent() {
     return recipes.find((r) => r.name === selectedRecipe) ?? null
   }, [selectedRecipe, recipes])
 
+  // Filter recipes by name
+  const filteredRecipes = useMemo(() => {
+    if (!recipes) return []
+    if (!recipeFilter.trim()) return recipes
+    const searchTerm = recipeFilter.toLowerCase().trim()
+    return recipes.filter((r) => r.name.toLowerCase().includes(searchTerm))
+  }, [recipes, recipeFilter])
+
+  // Filter ingredients by name or supplier
+  const filteredIngredients = useMemo(() => {
+    if (!ingredients) return []
+    if (!ingredientFilter.trim()) return ingredients
+    const searchTerm = ingredientFilter.toLowerCase().trim()
+    return ingredients.filter(
+      (i) =>
+        i.name.toLowerCase().includes(searchTerm) ||
+        (i.supplier && i.supplier.toLowerCase().includes(searchTerm))
+    )
+  }, [ingredients, ingredientFilter])
+
   // Handle add ingredient form submission
   const handleAddIngredient = () => {
     if (!newIngredient.name || !newIngredient.unit) return
@@ -197,6 +228,54 @@ function DashboardContent() {
       },
     })
   }
+
+  // Start editing a recipe
+  const startRecipeEdit = () => {
+    if (!selectedRecipeData) return
+    setRecipeEditForm({
+      portions: selectedRecipeData.portions || 1,
+      proposed_sale_price: selectedRecipeData.price || 0,
+      prep_time_minutes: selectedRecipeData.prep_time_minutes || 0,
+      cost_in_wages: selectedRecipeData.cost_in_wages || 0,
+    })
+    setIsEditingRecipe(true)
+  }
+
+  // Cancel editing
+  const cancelRecipeEdit = () => {
+    setIsEditingRecipe(false)
+  }
+
+  // Save recipe changes
+  const saveRecipeEdit = () => {
+    if (!selectedRecipeData) return
+    updateRecipe.mutate(
+      {
+        id: selectedRecipeData.id,
+        data: {
+          portions: recipeEditForm.portions,
+          proposed_sale_price: recipeEditForm.proposed_sale_price,
+          prep_time_minutes: recipeEditForm.prep_time_minutes || undefined,
+          cost_in_wages: recipeEditForm.cost_in_wages || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setIsEditingRecipe(false)
+        },
+      }
+    )
+  }
+
+  // Calculate preview values while editing
+  const editPreview = useMemo(() => {
+    if (!selectedRecipeData || !isEditingRecipe) return null
+    const batchCost = selectedRecipeData.total_cost
+    const batchRevenue = recipeEditForm.proposed_sale_price * recipeEditForm.portions
+    const batchProfit = batchRevenue - batchCost
+    const marginPct = batchRevenue > 0 ? (batchProfit / batchRevenue) * 100 : 0
+    return { batchCost, batchRevenue, batchProfit, marginPct }
+  }, [selectedRecipeData, isEditingRecipe, recipeEditForm])
 
   return (
     <DashboardLayout
@@ -591,6 +670,14 @@ function DashboardContent() {
                   <GridLayout columns={2}>
                     {/* Recipe Profitability Table */}
                     <SectionLayout title="Recipe Profitability" variant="card">
+                      <div className="mb-3">
+                        <Input
+                          placeholder="Search recipes..."
+                          value={recipeFilter}
+                          onChange={(e) => setRecipeFilter(e.target.value)}
+                          inputSize="sm"
+                        />
+                      </div>
                       <div className="max-h-[500px] overflow-y-auto -mx-6 -mb-6">
                         <table className="w-full">
                           <thead className="sticky top-0 bg-surface-card">
@@ -602,7 +689,7 @@ function DashboardContent() {
                             </tr>
                           </thead>
                           <tbody>
-                            {recipes?.map((recipe) => (
+                            {filteredRecipes.map((recipe) => (
                               <tr
                                 key={recipe.id}
                                 onClick={() => setSelectedRecipe(recipe.name)}
@@ -633,68 +720,197 @@ function DashboardContent() {
                     <SectionLayout title="Recipe Detail" variant="card">
                       {selectedRecipeData ? (
                         <div className="space-y-4">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h3 className="text-lg font-semibold">{selectedRecipeData.name}</h3>
-                              {selectedRecipeData.category && (
-                                <p className="text-sm text-text-muted">{selectedRecipeData.category}</p>
-                              )}
-                            </div>
-                            <Badge
-                              variant={selectedRecipeData.margin_percent > 0 ? 'success' : 'danger'}
-                            >
-                              {formatPercent(selectedRecipeData.margin_percent)} margin
-                            </Badge>
-                          </div>
+                          {isEditingRecipe ? (
+                            /* EDIT MODE */
+                            <>
+                              <div>
+                                <h3 className="text-lg font-semibold">{selectedRecipeData.name}</h3>
+                                {selectedRecipeData.concept && (
+                                  <p className="text-sm text-text-muted">{selectedRecipeData.concept}</p>
+                                )}
+                              </div>
 
-                          <div className="grid grid-cols-2 gap-4 py-4 border-y border-border">
-                            <div>
-                              <p className="text-sm text-text-muted">Portions per Batch</p>
-                              <p className="text-lg font-semibold">{selectedRecipeData.portions}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-text-muted">Price per Portion</p>
-                              <p className="text-lg font-semibold">{formatCurrency(selectedRecipeData.price, { decimals: 2 })}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-text-muted">Batch Cost</p>
-                              <p className="text-lg font-semibold">{formatCurrency(selectedRecipeData.total_cost, { decimals: 2 })}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-text-muted">Profit per Batch</p>
-                              <p className={cn(
-                                'text-lg font-semibold',
-                                selectedRecipeData.profit_per_batch > 0 ? 'text-status-success' : 'text-status-error'
+                              {/* Batch Economics Preview */}
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-surface-bg p-3 rounded-lg">
+                                  <p className="text-xs text-text-muted uppercase tracking-wide mb-1">Batch Cost</p>
+                                  <p className="text-xl font-semibold">{formatCurrency(editPreview?.batchCost ?? 0, { decimals: 2 })}</p>
+                                  <p className="text-xs text-text-muted">From ingredients (not editable)</p>
+                                </div>
+                                <div className="bg-surface-bg p-3 rounded-lg">
+                                  <p className="text-xs text-text-muted uppercase tracking-wide mb-1">Batch Revenue</p>
+                                  <p className="text-xl font-semibold">{formatCurrency(editPreview?.batchRevenue ?? 0, { decimals: 2 })}</p>
+                                  <p className="text-xs text-text-muted">Calculated from price × portions</p>
+                                </div>
+                              </div>
+
+                              <div className={cn(
+                                'p-3 rounded-lg flex justify-between items-center',
+                                (editPreview?.marginPct ?? 0) >= 0 ? 'bg-status-success/10' : 'bg-status-error/10'
                               )}>
-                                {formatCurrency(selectedRecipeData.profit_per_batch, { decimals: 2 })}
-                              </p>
-                            </div>
-                          </div>
+                                <span className="text-sm">Batch Profit</span>
+                                <span className={cn(
+                                  'text-lg font-semibold',
+                                  (editPreview?.marginPct ?? 0) >= 0 ? 'text-status-success' : 'text-status-error'
+                                )}>
+                                  {formatCurrency(editPreview?.batchProfit ?? 0, { decimals: 2 })} ({formatPercent(editPreview?.marginPct ?? 0)})
+                                </span>
+                              </div>
 
-                          <div>
-                            <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-3">Ingredients</h4>
-                            <div className="space-y-2">
-                              {selectedRecipeData.ingredients.map((ing, index) => (
-                                <div
-                                  key={index}
-                                  className="flex justify-between items-center py-2 border-b border-border last:border-0"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm">{ing.name}</span>
-                                    {!ing.linked && (
-                                      <Badge variant="warning" size="sm">Unlinked</Badge>
-                                    )}
+                              {/* Editable Fields */}
+                              <div>
+                                <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-3">Editable Fields</h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs text-text-muted mb-1">Portions per batch</label>
+                                    <Input
+                                      type="number"
+                                      value={recipeEditForm.portions}
+                                      onChange={(e) => setRecipeEditForm({ ...recipeEditForm, portions: parseInt(e.target.value) || 1 })}
+                                      min={1}
+                                      inputSize="sm"
+                                    />
                                   </div>
-                                  <div className="text-right">
-                                    <span className="text-sm text-text-muted">
-                                      {ing.quantity} {ing.unit}
-                                    </span>
-                                    <span className="text-sm ml-4">{formatCurrency(ing.total_cost, { decimals: 2 })}</span>
+                                  <div>
+                                    <label className="block text-xs text-text-muted mb-1">Price per portion ($)</label>
+                                    <Input
+                                      type="number"
+                                      value={recipeEditForm.proposed_sale_price}
+                                      onChange={(e) => setRecipeEditForm({ ...recipeEditForm, proposed_sale_price: parseFloat(e.target.value) || 0 })}
+                                      min={0}
+                                      step={0.01}
+                                      inputSize="sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs text-text-muted mb-1">Prep Time (minutes)</label>
+                                    <Input
+                                      type="number"
+                                      value={recipeEditForm.prep_time_minutes || ''}
+                                      onChange={(e) => setRecipeEditForm({ ...recipeEditForm, prep_time_minutes: parseInt(e.target.value) || 0 })}
+                                      min={0}
+                                      inputSize="sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs text-text-muted mb-1">Labor Cost ($)</label>
+                                    <Input
+                                      type="number"
+                                      value={recipeEditForm.cost_in_wages || ''}
+                                      onChange={(e) => setRecipeEditForm({ ...recipeEditForm, cost_in_wages: parseFloat(e.target.value) || 0 })}
+                                      min={0}
+                                      step={0.01}
+                                      inputSize="sm"
+                                    />
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
+                              </div>
+
+                              {/* Save/Cancel Buttons */}
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={saveRecipeEdit}
+                                  disabled={updateRecipe.isPending}
+                                >
+                                  {updateRecipe.isPending ? 'Saving...' : 'Save Changes'}
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={cancelRecipeEdit}
+                                  disabled={updateRecipe.isPending}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            /* VIEW MODE */
+                            <>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <h3 className="text-lg font-semibold">{selectedRecipeData.name}</h3>
+                                  {selectedRecipeData.concept && (
+                                    <p className="text-sm text-text-muted">{selectedRecipeData.concept}</p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={startRecipeEdit}
+                                >
+                                  Edit
+                                </Button>
+                              </div>
+
+                              {/* Batch Economics */}
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-surface-bg p-3 rounded-lg">
+                                  <p className="text-xs text-text-muted uppercase tracking-wide mb-1">Batch Cost</p>
+                                  <p className="text-xl font-semibold">{formatCurrency(selectedRecipeData.total_cost, { decimals: 2 })}</p>
+                                  <p className="text-xs text-text-muted">Total ingredient cost</p>
+                                </div>
+                                <div className="bg-surface-bg p-3 rounded-lg">
+                                  <p className="text-xs text-text-muted uppercase tracking-wide mb-1">Batch Revenue</p>
+                                  <p className="text-xl font-semibold">{formatCurrency(selectedRecipeData.revenue_per_batch, { decimals: 2 })}</p>
+                                  <p className="text-xs text-text-muted">{formatCurrency(selectedRecipeData.price, { decimals: 2 })} × {selectedRecipeData.portions} portions</p>
+                                </div>
+                              </div>
+
+                              <div className={cn(
+                                'p-3 rounded-lg flex justify-between items-center',
+                                selectedRecipeData.margin_percent >= 0 ? 'bg-status-success/10' : 'bg-status-error/10'
+                              )}>
+                                <span className="text-sm">Batch Profit</span>
+                                <span className={cn(
+                                  'text-lg font-semibold',
+                                  selectedRecipeData.margin_percent >= 0 ? 'text-status-success' : 'text-status-error'
+                                )}>
+                                  {formatCurrency(selectedRecipeData.profit_per_batch, { decimals: 2 })} ({formatPercent(selectedRecipeData.margin_percent)})
+                                </span>
+                              </div>
+
+                              {/* Recipe Details */}
+                              <div>
+                                <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-2">Recipe Details</h4>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <div>Portions per batch: <strong>{selectedRecipeData.portions}</strong></div>
+                                  <div>Price per portion: <strong>{formatCurrency(selectedRecipeData.price, { decimals: 2 })}</strong></div>
+                                  <div>Cost per portion: <strong>{formatCurrency(selectedRecipeData.cost_per_portion, { decimals: 2 })}</strong></div>
+                                  <div>Prep Time: <strong>{selectedRecipeData.prep_time_minutes ? `${selectedRecipeData.prep_time_minutes} min` : '--'}</strong></div>
+                                  <div>Labor Cost: <strong>{selectedRecipeData.cost_in_wages ? formatCurrency(selectedRecipeData.cost_in_wages, { decimals: 2 }) : '--'}</strong></div>
+                                </div>
+                              </div>
+
+                              {/* Ingredients */}
+                              <div>
+                                <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-3">Ingredients</h4>
+                                <div className="space-y-2">
+                                  {selectedRecipeData.ingredients.map((ing, index) => (
+                                    <div
+                                      key={index}
+                                      className="flex justify-between items-center py-2 border-b border-border last:border-0"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm">{ing.name}</span>
+                                        {!ing.linked && (
+                                          <Badge variant="warning" size="sm">Unlinked</Badge>
+                                        )}
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-sm text-text-muted">
+                                          {ing.quantity} {ing.unit}
+                                        </span>
+                                        <span className="text-sm ml-4">{formatCurrency(ing.total_cost ?? 0, { decimals: 2 })}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <div className="text-text-muted text-center py-12">
@@ -787,6 +1003,16 @@ function DashboardContent() {
                       </div>
                     )}
 
+                    {/* Ingredients Search */}
+                    <div className="mb-4">
+                      <Input
+                        placeholder="Search by name or supplier..."
+                        value={ingredientFilter}
+                        onChange={(e) => setIngredientFilter(e.target.value)}
+                        inputSize="sm"
+                      />
+                    </div>
+
                     {/* Ingredients Table */}
                     <div className="bg-surface-card border border-border rounded-lg">
                       <div className="max-h-[500px] overflow-y-auto">
@@ -794,6 +1020,7 @@ function DashboardContent() {
                           <thead className="sticky top-0 bg-surface-card">
                             <tr className="border-b border-border">
                               <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Ingredient</th>
+                              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Supplier</th>
                               <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Category</th>
                               <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Unit</th>
                               <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Cost/Unit</th>
@@ -802,13 +1029,14 @@ function DashboardContent() {
                           <tbody>
                             {ingredientsLoading ? (
                               <tr>
-                                <td colSpan={4} className="py-8 text-center">
+                                <td colSpan={5} className="py-8 text-center">
                                   <Spinner />
                                 </td>
                               </tr>
-                            ) : ingredients?.map((ingredient) => (
+                            ) : filteredIngredients.map((ingredient) => (
                               <tr key={ingredient.id} className="border-b border-border hover:bg-surface-bg">
                                 <td className="py-3 px-4 text-sm">{ingredient.name}</td>
+                                <td className="py-3 px-4 text-sm text-text-muted">{ingredient.supplier || '-'}</td>
                                 <td className="py-3 px-4 text-sm text-text-muted">{ingredient.category || '-'}</td>
                                 <td className="py-3 px-4 text-sm text-right">{ingredient.unit}</td>
                                 <td className="py-3 px-4 text-sm text-right">{formatCurrency(ingredient.unit_cost, { decimals: 2 })}</td>

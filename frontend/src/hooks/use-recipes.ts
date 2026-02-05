@@ -3,7 +3,6 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Recipe } from '../lib/api-types'
 import {
   getRecipes,
   getRecipe,
@@ -11,6 +10,7 @@ import {
   getUnlinkedIngredients,
   linkIngredient,
   reloadRecipeData,
+  type RecipeUpdateData,
 } from '../lib/api'
 
 export const recipeKeys = {
@@ -46,7 +46,7 @@ export function useUpdateRecipe() {
       data,
     }: {
       id: string
-      data: Partial<Pick<Recipe, 'portions' | 'price' | 'prep_time' | 'labor_cost'>>
+      data: RecipeUpdateData
     }) => updateRecipe(id, data),
     onSuccess: () => {
       // Invalidate recipe lists and details to refetch
