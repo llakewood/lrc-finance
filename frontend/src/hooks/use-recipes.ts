@@ -69,17 +69,18 @@ export function useLinkIngredient() {
   return useMutation({
     mutationFn: ({
       recipeId,
-      ingredientName,
+      ingredientIndex,
       masterIngredientId,
     }: {
       recipeId: string
-      ingredientName: string
+      ingredientIndex: number
       masterIngredientId: string
-    }) => linkIngredient(recipeId, ingredientName, masterIngredientId),
+    }) => linkIngredient(recipeId, ingredientIndex, masterIngredientId),
     onSuccess: () => {
-      // Invalidate unlinked list and recipe details
+      // Invalidate unlinked list, recipe details, and recipe lists for updated costs
       queryClient.invalidateQueries({ queryKey: recipeKeys.unlinked() })
       queryClient.invalidateQueries({ queryKey: recipeKeys.details() })
+      queryClient.invalidateQueries({ queryKey: recipeKeys.lists() })
     },
   })
 }

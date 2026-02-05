@@ -1299,6 +1299,57 @@
         let selectedYear = null;  // null = most recent (default)
 
         // =====================================================================
+        // LOCALSTORAGE CACHE FOR OFFLINE SUPPORT
+        // =====================================================================
+        const CACHE_PREFIX = 'lrc-html-cache-';
+        const CACHE_VERSION = 'v1';
+
+        function saveToLocalCache(key, data) {
+            try {
+                const entry = {
+                    data: data,
+                    timestamp: Date.now(),
+                    version: CACHE_VERSION
+                };
+                localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
+            } catch (e) {
+                console.warn('Failed to save to cache:', e);
+            }
+        }
+
+        function loadFromLocalCache(key) {
+            try {
+                const raw = localStorage.getItem(CACHE_PREFIX + key);
+                if (!raw) return null;
+
+                const entry = JSON.parse(raw);
+                if (entry.version !== CACHE_VERSION) {
+                    localStorage.removeItem(CACHE_PREFIX + key);
+                    return null;
+                }
+
+                return {
+                    data: entry.data,
+                    ageMs: Date.now() - entry.timestamp,
+                    timestamp: entry.timestamp
+                };
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function formatCacheAge(ageMs) {
+            const seconds = Math.floor(ageMs / 1000);
+            if (seconds < 60) return seconds + 's ago';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + 'm ago';
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return hours + 'h ago';
+            const days = Math.floor(hours / 24);
+            return days + 'd ago';
+        }
+
+        // =====================================================================
         // TAB NAVIGATION
         // =====================================================================
         document.querySelectorAll('.tab-button').forEach(button => {
@@ -1640,14 +1691,24 @@
 
                 if (data.connected) {
                     updateBadges('Live', '#e8f5e9', 'var(--success)');
-                    return true;
+                    return { connected: true, offline: false };
+                } else if (data.offline && data.has_cached_data) {
+                    // Offline but we have cached data
+                    updateBadges('Offline (Cached)', '#e3f2fd', '#1976d2');
+                    return { connected: false, offline: true, hasCached: true };
                 } else {
                     updateBadges('Not Connected', '#fff3cd', 'var(--warning)');
-                    return false;
+                    return { connected: false, offline: false };
                 }
             } catch (e) {
+                // Network error - check if we have cached data
+                const cached = loadFromLocalCache('product-mix');
+                if (cached) {
+                    updateBadges('Offline (Cached)', '#e3f2fd', '#1976d2');
+                    return { connected: false, offline: true, hasCached: true };
+                }
                 updateBadges('Error', '#f8d7da', 'var(--danger)');
-                return false;
+                return { connected: false, offline: false };
             }
         }
 
@@ -1671,6 +1732,67 @@
             }
         }
 
+        // Render product mix data to the page
+        function renderProductMix(data, isStale = false) {
+            // Update cache status
+            if (data._cache) {
+                updateCacheStatus(data._cache);
+            } else if (isStale) {
+                // Show stale indicator for localStorage cached data
+                const statusEl = document.getElementById('cache-status');
+                statusEl.textContent = 'Offline - Cached data';
+                statusEl.className = 'cache-status cached';
+            }
+
+            // Update metrics
+            document.getElementById('square-revenue').textContent = formatCurrency(data.totals.revenue);
+            document.getElementById('square-orders').textContent = data.totals.order_count.toLocaleString();
+            document.getElementById('square-items').textContent = data.totals.items_sold.toLocaleString();
+            document.getElementById('square-ticket').textContent = formatCurrency(data.totals.avg_ticket);
+
+            // Top products
+            const container = document.getElementById('product-mix-container');
+            let html = '';
+            data.top_items.slice(0, 10).forEach((item, i) => {
+                const rankClass = i < 3 ? 'top-3' : '';
+                html += `
+                    <div class="product-row">
+                        <div class="product-rank ${rankClass}">${i + 1}</div>
+                        <div class="product-info">
+                            <div class="product-name">${item.name}</div>
+                            <div class="product-qty">${item.quantity} sold</div>
+                        </div>
+                        <div class="product-revenue">
+                            <div class="product-amount">${formatCurrency(item.revenue)}</div>
+                            <div class="product-pct">${item.pct_of_revenue}%</div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+
+            // Categories
+            const catContainer = document.getElementById('category-container');
+            let catHtml = '<div style="display: flex; flex-wrap: wrap; gap: 16px;">';
+            data.by_category.forEach(cat => {
+                const width = Math.max(cat.pct_of_revenue * 2, 10);
+                catHtml += `
+                    <div style="flex: 1; min-width: 200px;">
+                        <div class="benchmark-label">
+                            <span>${cat.name}</span>
+                            <span><strong>${formatCurrency(cat.revenue)}</strong></span>
+                        </div>
+                        <div class="benchmark-bar">
+                            <div class="benchmark-fill good" style="width: ${cat.pct_of_revenue}%"></div>
+                        </div>
+                        <div class="benchmark-range">${cat.quantity} items (${cat.pct_of_revenue}%)</div>
+                    </div>
+                `;
+            });
+            catHtml += '</div>';
+            catContainer.innerHTML = catHtml;
+        }
+
         // Load Product Mix
         async function loadProductMix(forceRefresh = false) {
             try {
@@ -1678,64 +1800,58 @@
                 const res = await fetch(url);
                 const data = await res.json();
 
-                // Update cache status
-                if (data._cache) {
-                    updateCacheStatus(data._cache);
-                }
+                // Save to localStorage for offline fallback
+                saveToLocalCache('product-mix', data);
 
-                // Update metrics
-                document.getElementById('square-revenue').textContent = formatCurrency(data.totals.revenue);
-                document.getElementById('square-orders').textContent = data.totals.order_count.toLocaleString();
-                document.getElementById('square-items').textContent = data.totals.items_sold.toLocaleString();
-                document.getElementById('square-ticket').textContent = formatCurrency(data.totals.avg_ticket);
-
-                // Top products
-                const container = document.getElementById('product-mix-container');
-                let html = '';
-                data.top_items.slice(0, 10).forEach((item, i) => {
-                    const rankClass = i < 3 ? 'top-3' : '';
-                    html += `
-                        <div class="product-row">
-                            <div class="product-rank ${rankClass}">${i + 1}</div>
-                            <div class="product-info">
-                                <div class="product-name">${item.name}</div>
-                                <div class="product-qty">${item.quantity} sold</div>
-                            </div>
-                            <div class="product-revenue">
-                                <div class="product-amount">${formatCurrency(item.revenue)}</div>
-                                <div class="product-pct">${item.pct_of_revenue}%</div>
-                            </div>
-                        </div>
-                    `;
-                });
-                container.innerHTML = html;
-
-                // Categories
-                const catContainer = document.getElementById('category-container');
-                let catHtml = '<div style="display: flex; flex-wrap: wrap; gap: 16px;">';
-                data.by_category.forEach(cat => {
-                    const width = Math.max(cat.pct_of_revenue * 2, 10);
-                    catHtml += `
-                        <div style="flex: 1; min-width: 200px;">
-                            <div class="benchmark-label">
-                                <span>${cat.name}</span>
-                                <span><strong>${formatCurrency(cat.revenue)}</strong></span>
-                            </div>
-                            <div class="benchmark-bar">
-                                <div class="benchmark-fill good" style="width: ${cat.pct_of_revenue}%"></div>
-                            </div>
-                            <div class="benchmark-range">${cat.quantity} items (${cat.pct_of_revenue}%)</div>
-                        </div>
-                    `;
-                });
-                catHtml += '</div>';
-                catContainer.innerHTML = catHtml;
+                // Render the data
+                renderProductMix(data, data._cache?.stale || false);
 
             } catch (e) {
                 console.error('Failed to load product mix:', e);
-                document.getElementById('product-mix-container').innerHTML =
-                    '<div class="loading">Failed to load product data</div>';
+
+                // Try to load from localStorage cache
+                const cached = loadFromLocalCache('product-mix');
+                if (cached) {
+                    console.log('Using cached product mix data from', formatCacheAge(cached.ageMs));
+                    renderProductMix(cached.data, true);
+                } else {
+                    document.getElementById('product-mix-container').innerHTML =
+                        '<div class="loading">Failed to load product data</div>';
+                }
             }
+        }
+
+        // Render team data to the page
+        function renderTeamData(data) {
+            const container = document.getElementById('team-container');
+            let html = '<div class="team-grid">';
+
+            data.team_members.forEach(member => {
+                const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
+                html += `
+                    <div class="team-member">
+                        <div class="team-avatar">${initials}</div>
+                        <div class="team-name">${member.name}</div>
+                        <div class="team-role">${member.status || 'Active'}</div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+
+            // Add jobs summary
+            if (data.jobs && data.jobs.length > 0) {
+                html += '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">';
+                html += '<div class="card-title" style="margin-bottom: 8px;">Roles</div>';
+                html += '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+                data.jobs.forEach(job => {
+                    const rate = job.hourly_rate ? ` ($${job.hourly_rate}/hr)` : '';
+                    html += `<span style="background: var(--bg); padding: 4px 10px; border-radius: 4px; font-size: 12px;">${job.title}${rate}</span>`;
+                });
+                html += '</div></div>';
+            }
+
+            container.innerHTML = html;
         }
 
         // Load Team Data
@@ -1745,40 +1861,23 @@
                 const res = await fetch(url);
                 const data = await res.json();
 
-                const container = document.getElementById('team-container');
-                let html = '<div class="team-grid">';
+                // Save to localStorage for offline fallback
+                saveToLocalCache('team-data', data);
 
-                data.team_members.forEach(member => {
-                    const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
-                    html += `
-                        <div class="team-member">
-                            <div class="team-avatar">${initials}</div>
-                            <div class="team-name">${member.name}</div>
-                            <div class="team-role">${member.status || 'Active'}</div>
-                        </div>
-                    `;
-                });
-
-                html += '</div>';
-
-                // Add jobs summary
-                if (data.jobs.length > 0) {
-                    html += '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">';
-                    html += '<div class="card-title" style="margin-bottom: 8px;">Roles</div>';
-                    html += '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
-                    data.jobs.forEach(job => {
-                        const rate = job.hourly_rate ? ` ($${job.hourly_rate}/hr)` : '';
-                        html += `<span style="background: var(--bg); padding: 4px 10px; border-radius: 4px; font-size: 12px;">${job.title}${rate}</span>`;
-                    });
-                    html += '</div></div>';
-                }
-
-                container.innerHTML = html;
+                renderTeamData(data);
 
             } catch (e) {
                 console.error('Failed to load team data:', e);
-                document.getElementById('team-container').innerHTML =
-                    '<div class="loading">Failed to load team data</div>';
+
+                // Try to load from localStorage cache
+                const cached = loadFromLocalCache('team-data');
+                if (cached) {
+                    console.log('Using cached team data from', formatCacheAge(cached.ageMs));
+                    renderTeamData(cached.data);
+                } else {
+                    document.getElementById('team-container').innerHTML =
+                        '<div class="loading">Failed to load team data</div>';
+                }
             }
         }
 
@@ -2493,8 +2592,9 @@
             loadFinancialData();
 
             // Load Square live data
-            const squareConnected = await checkSquareStatus();
-            if (squareConnected) {
+            const squareStatus = await checkSquareStatus();
+            if (squareStatus.connected || squareStatus.hasCached) {
+                // Load data - will use cache if offline
                 loadProductMix();
                 loadTeamData();
             } else {

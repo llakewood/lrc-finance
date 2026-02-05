@@ -82,13 +82,16 @@ API Integration (lib/):
 - api.ts - API client with all endpoint functions
 
 Hooks (hooks/):
-- use-financial.ts - useFiscalYears, useSummary, useExpenseBreakdown, useBenchmarks, useDebtProgress
-- use-square.ts - useSquareStatus, useSquareSales, useSquareProductMix, useSquareTeam
-- use-recipes.ts - useRecipes, useRecipe, useUpdateRecipe, useUnlinkedIngredients
-- use-ingredients.ts - useIngredients, useUpdateIngredient, useCreateIngredient
+- use-financial.ts - useFiscalYears, useSummary, useExpenseBreakdown, useBenchmarks, useDebtProgress, useMetrics, useCashFlowHealth
+- use-square.ts - useSquareStatus, useSquareSales, useSquareProductMix, useSquareTeam, useRefreshSquareData
+- use-recipes.ts - useRecipes, useRecipe, useUpdateRecipe, useUnlinkedIngredients, useLinkIngredient
+- use-ingredients.ts - useIngredients, useUpdateIngredient, useCreateIngredient, useDeleteIngredient, useIngredientCategories
 
 Pages (pages/):
-- dashboard.tsx - Main dashboard composing all components with QueryClientProvider
+- dashboard.tsx - Main dashboard with 3 tabs:
+  - Financial Overview: Key metrics, profitability, benchmarks, debt progress, expense breakdown, cash flow health
+  - Live POS Data: Square sales metrics, top sellers, team grid
+  - Recipe Costing: Recipe summary cards, profitability table, recipe detail panel, master ingredients table
 
 To run frontend: `cd frontend && npm run dev` → http://localhost:5173
 To run Storybook: `cd frontend && npm run storybook` → http://localhost:6006

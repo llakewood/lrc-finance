@@ -42,16 +42,27 @@ from data.recipes import (
 
 
 # =============================================================================
-# SIMPLE CACHE FOR SQUARE API DATA
+# PERSISTENT CACHE FOR SQUARE API DATA
 # =============================================================================
 
-class SimpleCache:
-    """Simple in-memory cache with TTL"""
+import json
+
+CACHE_DIR = Path(__file__).parent.parent / "data" / "cache"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+class PersistentCache:
+    """In-memory cache with disk persistence for offline fallback"""
 
     def __init__(self, default_ttl: int = 300):  # 5 minutes default
         self._cache: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
         self.default_ttl = default_ttl
+
+    def _get_cache_path(self, key: str) -> Path:
+        """Get the file path for a cache key"""
+        safe_key = key.replace("/", "_").replace("?", "_")
+        return CACHE_DIR / f"{safe_key}.json"
 
     def get(self, key: str) -> tuple[Any, float | None]:
         """Get cached value and timestamp. Returns (None, None) if not cached or expired."""
@@ -66,20 +77,51 @@ class SimpleCache:
 
             return entry["data"], entry["cached_at"]
 
+    def get_stale(self, key: str) -> tuple[Any, float | None]:
+        """Get cached value even if expired (from memory or disk). For offline fallback."""
+        with self._lock:
+            # Check memory cache first (even if expired)
+            if key in self._cache:
+                entry = self._cache[key]
+                return entry["data"], entry["cached_at"]
+
+            # Try disk cache
+            cache_path = self._get_cache_path(key)
+            if cache_path.exists():
+                try:
+                    with open(cache_path, "r") as f:
+                        entry = json.load(f)
+                    return entry["data"], entry["cached_at"]
+                except (json.JSONDecodeError, KeyError, IOError):
+                    pass
+
+            return None, None
+
     def set(self, key: str, data: Any, ttl: int | None = None) -> float:
-        """Cache data with TTL. Returns the cached_at timestamp."""
+        """Cache data with TTL. Also persists to disk for offline fallback."""
         ttl = ttl or self.default_ttl
         cached_at = time.time()
+        entry = {
+            "data": data,
+            "cached_at": cached_at,
+            "expires_at": cached_at + ttl,
+        }
+
         with self._lock:
-            self._cache[key] = {
-                "data": data,
-                "cached_at": cached_at,
-                "expires_at": cached_at + ttl,
-            }
+            self._cache[key] = entry
+
+            # Persist to disk for offline fallback
+            cache_path = self._get_cache_path(key)
+            try:
+                with open(cache_path, "w") as f:
+                    json.dump(entry, f)
+            except IOError:
+                pass  # Disk write failure is non-fatal
+
         return cached_at
 
     def clear(self, key: str | None = None):
-        """Clear specific key or all cache"""
+        """Clear specific key or all cache (memory only, keeps disk for fallback)"""
         with self._lock:
             if key:
                 self._cache.pop(key, None)
@@ -88,7 +130,7 @@ class SimpleCache:
 
 
 # Global cache instance
-square_cache = SimpleCache(default_ttl=300)  # 5 minute TTL
+square_cache = PersistentCache(default_ttl=300)  # 5 minute TTL
 
 
 app = FastAPI(
@@ -554,19 +596,31 @@ async def get_cash_flow_health(
 async def get_square_status():
     """Check if Square API is configured and connected"""
     if not is_square_configured():
-        return {"configured": False, "message": "Square API not configured. Add SQUARE_ACCESS_TOKEN to .env"}
+        return {"configured": False, "connected": False, "message": "Square API not configured. Add SQUARE_ACCESS_TOKEN to .env"}
 
     try:
         from app.square_client import get_square_api
         api = get_square_api()
         locations = api.get_locations()
-        return {
+        result = {
             "configured": True,
             "connected": True,
             "locations": [{"id": loc["id"], "name": loc.get("name", "Unknown")} for loc in locations],
         }
+        # Cache the status for offline detection
+        square_cache.set("status", result)
+        return result
     except Exception as e:
-        return {"configured": True, "connected": False, "error": str(e)}
+        # Check if we have cached data to indicate offline mode
+        cached_data, cached_at = square_cache.get_stale("product_mix_30")
+        has_cached_data = cached_data is not None
+        return {
+            "configured": True,
+            "connected": False,
+            "offline": True,
+            "has_cached_data": has_cached_data,
+            "error": str(e),
+        }
 
 
 @app.get("/api/square/labor")
@@ -608,6 +662,7 @@ async def get_product_mix_data(
                 **cached_data,
                 "_cache": {
                     "cached": True,
+                    "stale": False,
                     "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
                     "age_seconds": int(time.time() - cached_at),
                 }
@@ -627,11 +682,26 @@ async def get_product_mix_data(
             **data,
             "_cache": {
                 "cached": False,
+                "stale": False,
                 "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
                 "age_seconds": 0,
             }
         }
     except Exception as e:
+        # Try to return stale cached data instead of failing
+        stale_data, stale_at = square_cache.get_stale(cache_key)
+        if stale_data is not None:
+            age_seconds = int(time.time() - stale_at)
+            return {
+                **stale_data,
+                "_cache": {
+                    "cached": True,
+                    "stale": True,
+                    "cached_at": datetime.fromtimestamp(stale_at).isoformat(),
+                    "age_seconds": age_seconds,
+                    "offline_reason": str(e),
+                }
+            }
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -644,6 +714,21 @@ async def get_sales_data(
     if not is_square_configured():
         raise HTTPException(status_code=400, detail="Square API not configured")
 
+    cache_key = f"sales_{days}_{group_by}"
+
+    # Check cache first
+    cached_data, cached_at = square_cache.get(cache_key)
+    if cached_data is not None:
+        return {
+            **cached_data,
+            "_cache": {
+                "cached": True,
+                "stale": False,
+                "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
+                "age_seconds": int(time.time() - cached_at),
+            }
+        }
+
     try:
         from app.square_client import get_square_api
         api = get_square_api()
@@ -651,8 +736,33 @@ async def get_sales_data(
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
 
-        return {"sales": api.get_sales_by_period(start_date, end_date, group_by)}
+        data = {"sales": api.get_sales_by_period(start_date, end_date, group_by)}
+        cached_at = square_cache.set(cache_key, data)
+
+        return {
+            **data,
+            "_cache": {
+                "cached": False,
+                "stale": False,
+                "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
+                "age_seconds": 0,
+            }
+        }
     except Exception as e:
+        # Try to return stale cached data
+        stale_data, stale_at = square_cache.get_stale(cache_key)
+        if stale_data is not None:
+            age_seconds = int(time.time() - stale_at)
+            return {
+                **stale_data,
+                "_cache": {
+                    "cached": True,
+                    "stale": True,
+                    "cached_at": datetime.fromtimestamp(stale_at).isoformat(),
+                    "age_seconds": age_seconds,
+                    "offline_reason": str(e),
+                }
+            }
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -674,6 +784,7 @@ async def get_team_data(
                 **cached_data,
                 "_cache": {
                     "cached": True,
+                    "stale": False,
                     "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
                     "age_seconds": int(time.time() - cached_at),
                 }
@@ -712,11 +823,26 @@ async def get_team_data(
             **data,
             "_cache": {
                 "cached": False,
+                "stale": False,
                 "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
                 "age_seconds": 0,
             }
         }
     except Exception as e:
+        # Try to return stale cached data
+        stale_data, stale_at = square_cache.get_stale(cache_key)
+        if stale_data is not None:
+            age_seconds = int(time.time() - stale_at)
+            return {
+                **stale_data,
+                "_cache": {
+                    "cached": True,
+                    "stale": True,
+                    "cached_at": datetime.fromtimestamp(stale_at).isoformat(),
+                    "age_seconds": age_seconds,
+                    "offline_reason": str(e),
+                }
+            }
         raise HTTPException(status_code=500, detail=str(e))
 
 

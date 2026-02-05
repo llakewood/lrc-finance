@@ -21,6 +21,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { AlertBanner } from '@/components/organisms/alert-banner'
 import { StatusDot } from '@/components/ui/status-dot'
+import { IngredientLinkingModal } from '@/components/organisms/ingredient-linking-modal'
 
 import {
   useFiscalYears,
@@ -65,6 +66,7 @@ function DashboardContent() {
   const [activeTab, setActiveTab] = useState('financials')
   const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null)
   const [showAddIngredient, setShowAddIngredient] = useState(false)
+  const [showLinkingModal, setShowLinkingModal] = useState(false)
   const [newIngredient, setNewIngredient] = useState({
     name: '',
     category: '',
@@ -538,8 +540,19 @@ function DashboardContent() {
                   variant="warning"
                   title="Ingredient Linking Needed"
                   description={`${unlinkedIngredients.length} recipe ingredients need to be linked to master ingredients for accurate cost tracking.`}
+                  action={{
+                    label: 'Review & Link',
+                    onClick: () => setShowLinkingModal(true),
+                  }}
                 />
               )}
+
+              {/* Ingredient Linking Modal */}
+              <IngredientLinkingModal
+                open={showLinkingModal}
+                onClose={() => setShowLinkingModal(false)}
+                unlinkedIngredients={unlinkedIngredients ?? []}
+              />
 
               {/* Recipe Summary Cards */}
               {recipesLoading ? (
