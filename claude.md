@@ -28,19 +28,66 @@ COMPLETED:
 - [x] Ingredient linking - recipes link to master ingredients for auto-cost updates
 - [x] Manual linking UI - modal to review/link unmatched ingredients (18 items need review)
 - [x] Component library foundation (Phase 1) - React + TypeScript + Tailwind + Storybook + CVA
+- [x] Component library complete (Phases 1-5) - 29 components, TanStack Query hooks, Dashboard page
 
 FRONTEND (frontend/):
 
 Built with Vite + React 18 + TypeScript + Tailwind CSS v4 + Storybook 10
 
 Atomic design component library with CVA variants:
+
+Atoms (components/ui/):
 - Button (7 variants, 4 sizes)
 - Input (3 variants, 3 sizes)
 - Select (3 variants, 3 sizes)
-- Card (3 variants, 4 paddings, with Header/Title/Description/Content/Footer)
+- Card (3 variants, 4 paddings)
 - Badge (9 variants, 3 sizes)
 - Text (6 variants, 7 sizes, 4 weights, polymorphic)
 - Tooltip (2 variants, 4 positions)
+- Spinner (4 sizes, 3 variants)
+- StatusDot (7 variants, pulse animation)
+- IconButton (4 variants, 3 sizes)
+
+Molecules (components/molecules/):
+- ContentCard (Card + Header/Title/Description/Content/Footer)
+- MetricCard (KPI display with change indicators, tooltips)
+- ProgressBar (visual progress with color variants)
+- BenchmarkBar (value vs industry range comparison)
+- ProductRow (ranked product display)
+- TeamMemberCard (avatar with initials, status)
+- DataTable (generic sortable table)
+- YearFilter (fiscal year pill selector)
+- EditableCell (inline edit/display toggle)
+
+Organisms (components/organisms/):
+- Tabs (default/pills/underline variants)
+- Modal (dialog overlay, sizes sm-full)
+- Toast (notifications with auto-dismiss)
+- MetricGrid (responsive grid of MetricCards)
+- BenchmarkList (industry comparisons)
+- DebtProgress (debt paydown tracker)
+- ProductMixTable (ranked product list)
+- TeamGrid (team member cards grid)
+- RecipeDetail (full recipe view with ingredients)
+- AlertBanner (info/warning/success/error)
+
+Templates (components/templates/):
+- DashboardLayout (main layout with header, logo, footer)
+- SectionLayout (section wrapper with title, actions)
+- GridLayout (responsive grid utility)
+
+API Integration (lib/):
+- api-types.ts - TypeScript interfaces for all API responses
+- api.ts - API client with all endpoint functions
+
+Hooks (hooks/):
+- use-financial.ts - useFiscalYears, useSummary, useExpenseBreakdown, useBenchmarks, useDebtProgress
+- use-square.ts - useSquareStatus, useSquareSales, useSquareProductMix, useSquareTeam
+- use-recipes.ts - useRecipes, useRecipe, useUpdateRecipe, useUnlinkedIngredients
+- use-ingredients.ts - useIngredients, useUpdateIngredient, useCreateIngredient
+
+Pages (pages/):
+- dashboard.tsx - Main dashboard composing all components with QueryClientProvider
 
 To run frontend: `cd frontend && npm run dev` → http://localhost:5173
 To run Storybook: `cd frontend && npm run storybook` → http://localhost:6006
