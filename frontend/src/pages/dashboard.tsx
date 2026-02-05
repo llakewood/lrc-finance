@@ -47,6 +47,8 @@ import {
 import {
   useIngredients,
   useCreateIngredient,
+  useUpdateIngredient,
+  useDeleteIngredient,
   useIngredientCategories,
 } from '@/hooks/use-ingredients'
 import { formatCurrency, formatPercent } from '@/lib/utils'
@@ -83,6 +85,14 @@ function DashboardContent() {
   })
   const [recipeFilter, setRecipeFilter] = useState('')
   const [ingredientFilter, setIngredientFilter] = useState('')
+  const [editingIngredientId, setEditingIngredientId] = useState<string | null>(null)
+  const [ingredientEditForm, setIngredientEditForm] = useState({
+    name: '',
+    category: '',
+    cost: 0,
+    units: 0,
+    supplier: '',
+  })
 
   // Financial data queries
   const { data: fiscalYears, isLoading: yearsLoading } = useFiscalYears()
@@ -110,6 +120,8 @@ function DashboardContent() {
   const { data: ingredients, isLoading: ingredientsLoading } = useIngredients()
   const { data: ingredientCategories } = useIngredientCategories()
   const createIngredient = useCreateIngredient()
+  const updateIngredientMutation = useUpdateIngredient()
+  const deleteIngredientMutation = useDeleteIngredient()
 
   const isLive = squareStatus?.connected ?? false
   const isLoading = summaryLoading || expensesLoading || benchmarksLoading || debtLoading || metricsLoading || cashFlowLoading
@@ -218,6 +230,25 @@ function DashboardContent() {
     )
   }, [ingredients, ingredientFilter])
 
+  // Build a map of ingredient ID to recipe names that use it
+  const ingredientRecipeMap = useMemo(() => {
+    const map: Record<string, string[]> = {}
+    if (!recipes) return map
+    recipes.forEach((recipe) => {
+      recipe.ingredients.forEach((ing) => {
+        if (ing.ingredient_id) {
+          if (!map[ing.ingredient_id]) {
+            map[ing.ingredient_id] = []
+          }
+          if (!map[ing.ingredient_id].includes(recipe.name)) {
+            map[ing.ingredient_id].push(recipe.name)
+          }
+        }
+      })
+    })
+    return map
+  }, [recipes])
+
   // Handle add ingredient form submission
   const handleAddIngredient = () => {
     if (!newIngredient.name || !newIngredient.unit) return
@@ -276,6 +307,57 @@ function DashboardContent() {
     const marginPct = batchRevenue > 0 ? (batchProfit / batchRevenue) * 100 : 0
     return { batchCost, batchRevenue, batchProfit, marginPct }
   }, [selectedRecipeData, isEditingRecipe, recipeEditForm])
+
+  // Start editing an ingredient
+  const startIngredientEdit = (ingredient: typeof ingredients extends (infer T)[] ? T : never) => {
+    setEditingIngredientId(ingredient.id)
+    setIngredientEditForm({
+      name: ingredient.name || '',
+      category: ingredient.category || '',
+      cost: ingredient.cost || 0,
+      units: ingredient.units || 0,
+      supplier: ingredient.supplier || '',
+    })
+  }
+
+  // Cancel ingredient editing
+  const cancelIngredientEdit = () => {
+    setEditingIngredientId(null)
+  }
+
+  // Save ingredient changes
+  const saveIngredientEdit = () => {
+    if (!editingIngredientId) return
+    updateIngredientMutation.mutate(
+      {
+        id: editingIngredientId,
+        data: {
+          name: ingredientEditForm.name,
+          category: ingredientEditForm.category || undefined,
+          cost: ingredientEditForm.cost || undefined,
+          units: ingredientEditForm.units || undefined,
+          supplier: ingredientEditForm.supplier || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setEditingIngredientId(null)
+        },
+      }
+    )
+  }
+
+  // Delete an ingredient
+  const handleDeleteIngredient = (id: string, name: string) => {
+    const confirmed = window.confirm(`Delete "${name}"? This cannot be undone.`)
+    if (!confirmed) return
+    deleteIngredientMutation.mutate(id, {
+      onError: (error) => {
+        console.error('Failed to delete ingredient:', error)
+        window.alert(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      },
+    })
+  }
 
   return (
     <DashboardLayout
@@ -1020,27 +1102,137 @@ function DashboardContent() {
                           <thead className="sticky top-0 bg-surface-card">
                             <tr className="border-b border-border">
                               <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Ingredient</th>
-                              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Supplier</th>
                               <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Category</th>
-                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Unit</th>
+                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Cost</th>
+                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Units</th>
                               <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Cost/Unit</th>
+                              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Supplier</th>
+                              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Used In</th>
+                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {ingredientsLoading ? (
                               <tr>
-                                <td colSpan={5} className="py-8 text-center">
+                                <td colSpan={8} className="py-8 text-center">
                                   <Spinner />
                                 </td>
                               </tr>
                             ) : filteredIngredients.map((ingredient) => (
-                              <tr key={ingredient.id} className="border-b border-border hover:bg-surface-bg">
-                                <td className="py-3 px-4 text-sm">{ingredient.name}</td>
-                                <td className="py-3 px-4 text-sm text-text-muted">{ingredient.supplier || '-'}</td>
-                                <td className="py-3 px-4 text-sm text-text-muted">{ingredient.category || '-'}</td>
-                                <td className="py-3 px-4 text-sm text-right">{ingredient.unit}</td>
-                                <td className="py-3 px-4 text-sm text-right">{formatCurrency(ingredient.unit_cost, { decimals: 2 })}</td>
-                              </tr>
+                              editingIngredientId === ingredient.id ? (
+                                // EDIT MODE ROW
+                                <tr key={ingredient.id} className="border-b border-border bg-primary/5">
+                                  <td className="py-2 px-3">
+                                    <Input
+                                      value={ingredientEditForm.name}
+                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, name: e.target.value })}
+                                      inputSize="sm"
+                                      placeholder="Name"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <Input
+                                      value={ingredientEditForm.category}
+                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, category: e.target.value })}
+                                      inputSize="sm"
+                                      placeholder="Category"
+                                      list="category-list"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <Input
+                                      type="number"
+                                      value={ingredientEditForm.cost || ''}
+                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, cost: parseFloat(e.target.value) || 0 })}
+                                      inputSize="sm"
+                                      step="0.01"
+                                      className="text-right"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <Input
+                                      type="number"
+                                      value={ingredientEditForm.units || ''}
+                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, units: parseFloat(e.target.value) || 0 })}
+                                      inputSize="sm"
+                                      step="1"
+                                      className="text-right"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3 text-sm text-right text-text-muted">
+                                    {ingredientEditForm.cost && ingredientEditForm.units
+                                      ? formatCurrency(ingredientEditForm.cost / ingredientEditForm.units, { decimals: 4 })
+                                      : '--'}
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <Input
+                                      value={ingredientEditForm.supplier}
+                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, supplier: e.target.value })}
+                                      inputSize="sm"
+                                      placeholder="Supplier"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3 text-sm text-text-muted">
+                                    {ingredientRecipeMap[ingredient.id]?.length
+                                      ? ingredientRecipeMap[ingredient.id].join(', ')
+                                      : '-'}
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <div className="flex gap-1 justify-end">
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={saveIngredientEdit}
+                                        disabled={updateIngredientMutation.isPending}
+                                      >
+                                        {updateIngredientMutation.isPending ? 'Saving...' : 'Save'}
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={cancelIngredientEdit}
+                                        disabled={updateIngredientMutation.isPending}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : (
+                                // VIEW MODE ROW
+                                <tr
+                                  key={ingredient.id}
+                                  className="border-b border-border hover:bg-surface-bg cursor-pointer"
+                                  onClick={() => startIngredientEdit(ingredient)}
+                                >
+                                  <td className="py-3 px-4 text-sm">{ingredient.name}</td>
+                                  <td className="py-3 px-4 text-sm text-text-muted">{ingredient.category || '-'}</td>
+                                  <td className="py-3 px-4 text-sm text-right">{ingredient.cost ? formatCurrency(ingredient.cost, { decimals: 2 }) : '-'}</td>
+                                  <td className="py-3 px-4 text-sm text-right">{ingredient.units || '-'}</td>
+                                  <td className="py-3 px-4 text-sm text-right">{formatCurrency(ingredient.unit_cost, { decimals: 4 })}</td>
+                                  <td className="py-3 px-4 text-sm text-text-muted">{ingredient.supplier || '-'}</td>
+                                  <td className="py-3 px-4 text-sm text-text-muted">
+                                    {ingredientRecipeMap[ingredient.id]?.length
+                                      ? ingredientRecipeMap[ingredient.id].join(', ')
+                                      : '-'}
+                                  </td>
+                                  <td className="py-3 px-4 text-right">
+                                    <Button
+                                      type="button"
+                                      variant="danger"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        e.preventDefault()
+                                        handleDeleteIngredient(ingredient.id, ingredient.name)
+                                      }}
+                                      disabled={deleteIngredientMutation.isPending}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </td>
+                                </tr>
+                              )
                             ))}
                           </tbody>
                         </table>

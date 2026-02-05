@@ -11,6 +11,7 @@ import {
   createIngredient,
   deleteIngredient,
   getIngredientCategories,
+  type IngredientUpdateData,
 } from '../lib/api'
 import { recipeKeys } from './use-recipes'
 
@@ -47,7 +48,7 @@ export function useUpdateIngredient() {
       data,
     }: {
       id: string
-      data: Partial<Pick<Ingredient, 'name' | 'unit' | 'unit_cost' | 'category'>>
+      data: IngredientUpdateData
     }) => updateIngredient(id, data),
     onSuccess: () => {
       // Invalidate ingredient lists and details
