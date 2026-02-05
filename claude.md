@@ -29,6 +29,7 @@ COMPLETED:
 - [x] Manual linking UI - modal to review/link unmatched ingredients (18 items need review)
 - [x] Component library foundation (Phase 1) - React + TypeScript + Tailwind + Storybook + CVA
 - [x] Component library complete (Phases 1-5) - 29 components, TanStack Query hooks, Dashboard page
+- [x] React frontend feature parity with HTML template (3 tabs: Financial Overview, Live POS Data, Recipe Costing)
 
 FRONTEND (frontend/):
 
