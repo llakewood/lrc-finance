@@ -10,7 +10,11 @@ import {
   getUnlinkedIngredients,
   linkIngredient,
   reloadRecipeData,
+  addRecipeIngredient,
+  updateRecipeIngredient,
+  deleteRecipeIngredient,
   type RecipeUpdateData,
+  type RecipeIngredientData,
 } from '../lib/api'
 
 export const recipeKeys = {
@@ -93,6 +97,65 @@ export function useReloadRecipeData() {
     onSuccess: () => {
       // Invalidate all recipe queries
       queryClient.invalidateQueries({ queryKey: recipeKeys.all })
+    },
+  })
+}
+
+export function useAddRecipeIngredient() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      recipeId,
+      data,
+    }: {
+      recipeId: string
+      data: RecipeIngredientData
+    }) => addRecipeIngredient(recipeId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: recipeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: recipeKeys.details() })
+      queryClient.invalidateQueries({ queryKey: recipeKeys.unlinked() })
+    },
+  })
+}
+
+export function useUpdateRecipeIngredient() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      recipeId,
+      ingredientIndex,
+      data,
+    }: {
+      recipeId: string
+      ingredientIndex: number
+      data: Partial<RecipeIngredientData>
+    }) => updateRecipeIngredient(recipeId, ingredientIndex, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: recipeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: recipeKeys.details() })
+      queryClient.invalidateQueries({ queryKey: recipeKeys.unlinked() })
+    },
+  })
+}
+
+export function useDeleteRecipeIngredient() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      recipeId,
+      ingredientIndex,
+    }: {
+      recipeId: string
+      ingredientIndex: number
+    }) => deleteRecipeIngredient(recipeId, ingredientIndex),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: recipeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: recipeKeys.details() })
+      queryClient.invalidateQueries({ queryKey: recipeKeys.unlinked() })
     },
   })
 }

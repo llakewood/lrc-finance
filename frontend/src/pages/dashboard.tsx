@@ -43,6 +43,9 @@ import {
   useRecipes,
   useUnlinkedIngredients,
   useUpdateRecipe,
+  useAddRecipeIngredient,
+  useUpdateRecipeIngredient,
+  useDeleteRecipeIngredient,
 } from '@/hooks/use-recipes'
 import {
   useIngredients,
@@ -93,6 +96,15 @@ function DashboardContent() {
     units: 0,
     supplier: '',
   })
+  // Recipe ingredient editing state
+  const [editingRecipeIngredientIndex, setEditingRecipeIngredientIndex] = useState<number | null>(null)
+  const [showAddRecipeIngredient, setShowAddRecipeIngredient] = useState(false)
+  const [recipeIngredientForm, setRecipeIngredientForm] = useState({
+    name: '',
+    quantity: 0,
+    unit: '',
+    master_ingredient_id: '' as string | null,
+  })
 
   // Financial data queries
   const { data: fiscalYears, isLoading: yearsLoading } = useFiscalYears()
@@ -115,6 +127,9 @@ function DashboardContent() {
   const { data: recipes, isLoading: recipesLoading } = useRecipes('profit')
   const { data: unlinkedIngredients } = useUnlinkedIngredients()
   const updateRecipe = useUpdateRecipe()
+  const addRecipeIngredientMutation = useAddRecipeIngredient()
+  const updateRecipeIngredientMutation = useUpdateRecipeIngredient()
+  const deleteRecipeIngredientMutation = useDeleteRecipeIngredient()
 
   // Ingredient data queries
   const { data: ingredients, isLoading: ingredientsLoading } = useIngredients()
@@ -308,8 +323,8 @@ function DashboardContent() {
     return { batchCost, batchRevenue, batchProfit, marginPct }
   }, [selectedRecipeData, isEditingRecipe, recipeEditForm])
 
-  // Start editing an ingredient
-  const startIngredientEdit = (ingredient: typeof ingredients extends (infer T)[] ? T : never) => {
+  // Start editing an ingredient (master ingredients list)
+  const startIngredientEdit = (ingredient: NonNullable<typeof ingredients>[number]) => {
     setEditingIngredientId(ingredient.id)
     setIngredientEditForm({
       name: ingredient.name || '',
@@ -357,6 +372,107 @@ function DashboardContent() {
         window.alert(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`)
       },
     })
+  }
+
+  // =========================================
+  // Recipe Ingredient Editing Handlers
+  // =========================================
+
+  // Start editing a recipe ingredient
+  const startRecipeIngredientEdit = (index: number) => {
+    if (!selectedRecipeData) return
+    const ing = selectedRecipeData.ingredients[index]
+    setEditingRecipeIngredientIndex(index)
+    setRecipeIngredientForm({
+      name: ing.name || '',
+      quantity: ing.quantity || 0,
+      unit: ing.unit || '',
+      master_ingredient_id: ing.ingredient_id || null,
+    })
+    setShowAddRecipeIngredient(false)
+  }
+
+  // Cancel recipe ingredient editing
+  const cancelRecipeIngredientEdit = () => {
+    setEditingRecipeIngredientIndex(null)
+    setShowAddRecipeIngredient(false)
+    setRecipeIngredientForm({ name: '', quantity: 0, unit: '', master_ingredient_id: null })
+  }
+
+  // Save recipe ingredient changes
+  const saveRecipeIngredientEdit = () => {
+    if (!selectedRecipeData || editingRecipeIngredientIndex === null) return
+    updateRecipeIngredientMutation.mutate(
+      {
+        recipeId: selectedRecipeData.id,
+        ingredientIndex: editingRecipeIngredientIndex,
+        data: {
+          name: recipeIngredientForm.name,
+          quantity: recipeIngredientForm.quantity,
+          unit: recipeIngredientForm.unit || undefined,
+          master_ingredient_id: recipeIngredientForm.master_ingredient_id || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setEditingRecipeIngredientIndex(null)
+          setRecipeIngredientForm({ name: '', quantity: 0, unit: '', master_ingredient_id: null })
+        },
+        onError: (error) => {
+          window.alert(`Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        },
+      }
+    )
+  }
+
+  // Start adding a new recipe ingredient
+  const startAddRecipeIngredient = () => {
+    setShowAddRecipeIngredient(true)
+    setEditingRecipeIngredientIndex(null)
+    setRecipeIngredientForm({ name: '', quantity: 0, unit: '', master_ingredient_id: null })
+  }
+
+  // Add a new recipe ingredient
+  const addNewRecipeIngredient = () => {
+    if (!selectedRecipeData || !recipeIngredientForm.name) return
+    addRecipeIngredientMutation.mutate(
+      {
+        recipeId: selectedRecipeData.id,
+        data: {
+          name: recipeIngredientForm.name,
+          quantity: recipeIngredientForm.quantity,
+          unit: recipeIngredientForm.unit || undefined,
+          master_ingredient_id: recipeIngredientForm.master_ingredient_id || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setShowAddRecipeIngredient(false)
+          setRecipeIngredientForm({ name: '', quantity: 0, unit: '', master_ingredient_id: null })
+        },
+        onError: (error) => {
+          window.alert(`Failed to add: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        },
+      }
+    )
+  }
+
+  // Delete a recipe ingredient
+  const handleDeleteRecipeIngredient = (index: number, name: string) => {
+    if (!selectedRecipeData) return
+    const confirmed = window.confirm(`Remove "${name}" from this recipe?`)
+    if (!confirmed) return
+    deleteRecipeIngredientMutation.mutate(
+      {
+        recipeId: selectedRecipeData.id,
+        ingredientIndex: index,
+      },
+      {
+        onError: (error) => {
+          window.alert(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        },
+      }
+    )
   }
 
   return (
@@ -968,26 +1084,182 @@ function DashboardContent() {
 
                               {/* Ingredients */}
                               <div>
-                                <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-3">Ingredients</h4>
-                                <div className="space-y-2">
-                                  {selectedRecipeData.ingredients.map((ing, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex justify-between items-center py-2 border-b border-border last:border-0"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm">{ing.name}</span>
-                                        {!ing.linked && (
-                                          <Badge variant="warning" size="sm">Unlinked</Badge>
-                                        )}
+                                <div className="flex justify-between items-center mb-3">
+                                  <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wide">Ingredients</h4>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={startAddRecipeIngredient}
+                                    disabled={showAddRecipeIngredient}
+                                  >
+                                    + Add
+                                  </Button>
+                                </div>
+
+                                {/* Add New Ingredient Form */}
+                                {showAddRecipeIngredient && (
+                                  <div className="bg-surface-bg p-3 rounded-lg mb-3 space-y-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="block text-xs text-text-muted mb-1">Name *</label>
+                                        <Input
+                                          value={recipeIngredientForm.name}
+                                          onChange={(e) => setRecipeIngredientForm({ ...recipeIngredientForm, name: e.target.value })}
+                                          inputSize="sm"
+                                          placeholder="Ingredient name"
+                                        />
                                       </div>
-                                      <div className="text-right">
-                                        <span className="text-sm text-text-muted">
-                                          {ing.quantity} {ing.unit}
-                                        </span>
-                                        <span className="text-sm ml-4">{formatCurrency(ing.total_cost ?? 0, { decimals: 2 })}</span>
+                                      <div>
+                                        <label className="block text-xs text-text-muted mb-1">Quantity</label>
+                                        <Input
+                                          type="number"
+                                          value={recipeIngredientForm.quantity || ''}
+                                          onChange={(e) => setRecipeIngredientForm({ ...recipeIngredientForm, quantity: parseFloat(e.target.value) || 0 })}
+                                          inputSize="sm"
+                                          step="0.01"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-text-muted mb-1">Unit</label>
+                                        <Input
+                                          value={recipeIngredientForm.unit}
+                                          onChange={(e) => setRecipeIngredientForm({ ...recipeIngredientForm, unit: e.target.value })}
+                                          inputSize="sm"
+                                          placeholder="oz, g, each..."
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-text-muted mb-1">Link to Master</label>
+                                        <select
+                                          className="w-full h-8 px-2 text-sm border border-border rounded-md bg-surface-card"
+                                          value={recipeIngredientForm.master_ingredient_id || ''}
+                                          onChange={(e) => setRecipeIngredientForm({ ...recipeIngredientForm, master_ingredient_id: e.target.value || null })}
+                                        >
+                                          <option value="">-- None --</option>
+                                          {ingredients?.map((ing) => (
+                                            <option key={ing.id} value={ing.id}>
+                                              {ing.name} ({formatCurrency(ing.unit_cost, { decimals: 4 })}/unit)
+                                            </option>
+                                          ))}
+                                        </select>
                                       </div>
                                     </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={addNewRecipeIngredient}
+                                        disabled={!recipeIngredientForm.name || addRecipeIngredientMutation.isPending}
+                                      >
+                                        {addRecipeIngredientMutation.isPending ? 'Adding...' : 'Add Ingredient'}
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={cancelRecipeIngredientEdit}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Ingredients List */}
+                                <div className="space-y-1">
+                                  {selectedRecipeData.ingredients.map((ing, index) => (
+                                    editingRecipeIngredientIndex === index ? (
+                                      // EDIT MODE
+                                      <div key={index} className="bg-surface-bg p-3 rounded-lg space-y-3">
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="block text-xs text-text-muted mb-1">Name</label>
+                                            <Input
+                                              value={recipeIngredientForm.name}
+                                              onChange={(e) => setRecipeIngredientForm({ ...recipeIngredientForm, name: e.target.value })}
+                                              inputSize="sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs text-text-muted mb-1">Quantity</label>
+                                            <Input
+                                              type="number"
+                                              value={recipeIngredientForm.quantity || ''}
+                                              onChange={(e) => setRecipeIngredientForm({ ...recipeIngredientForm, quantity: parseFloat(e.target.value) || 0 })}
+                                              inputSize="sm"
+                                              step="0.01"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs text-text-muted mb-1">Unit</label>
+                                            <Input
+                                              value={recipeIngredientForm.unit}
+                                              onChange={(e) => setRecipeIngredientForm({ ...recipeIngredientForm, unit: e.target.value })}
+                                              inputSize="sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs text-text-muted mb-1">Link to Master</label>
+                                            <select
+                                              className="w-full h-8 px-2 text-sm border border-border rounded-md bg-surface-card"
+                                              value={recipeIngredientForm.master_ingredient_id || ''}
+                                              onChange={(e) => setRecipeIngredientForm({ ...recipeIngredientForm, master_ingredient_id: e.target.value || null })}
+                                            >
+                                              <option value="">-- None --</option>
+                                              {ingredients?.map((masterIng) => (
+                                                <option key={masterIng.id} value={masterIng.id}>
+                                                  {masterIng.name} ({formatCurrency(masterIng.unit_cost, { decimals: 4 })}/unit)
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={saveRecipeIngredientEdit}
+                                            disabled={updateRecipeIngredientMutation.isPending}
+                                          >
+                                            {updateRecipeIngredientMutation.isPending ? 'Saving...' : 'Save'}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={cancelRecipeIngredientEdit}
+                                          >
+                                            Cancel
+                                          </Button>
+                                          <Button
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => handleDeleteRecipeIngredient(index, ing.name)}
+                                            disabled={deleteRecipeIngredientMutation.isPending}
+                                          >
+                                            Delete
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      // VIEW MODE
+                                      <div
+                                        key={index}
+                                        className="flex justify-between items-center py-2 px-2 border-b border-border last:border-0 hover:bg-surface-bg cursor-pointer rounded"
+                                        onClick={() => startRecipeIngredientEdit(index)}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm">{ing.name}</span>
+                                          {!ing.linked && (
+                                            <Badge variant="warning" size="sm">Unlinked</Badge>
+                                          )}
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="text-sm text-text-muted">
+                                            {ing.quantity} {ing.unit}
+                                          </span>
+                                          <span className="text-sm ml-4">{formatCurrency(ing.total_cost ?? 0, { decimals: 2 })}</span>
+                                        </div>
+                                      </div>
+                                    )
                                   ))}
                                 </div>
                               </div>

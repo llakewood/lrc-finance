@@ -38,6 +38,9 @@ from data.recipes import (
     update_recipe,
     link_recipe_ingredient,
     get_unlinked_ingredients,
+    add_recipe_ingredient,
+    update_recipe_ingredient,
+    delete_recipe_ingredient,
 )
 
 
@@ -1044,6 +1047,55 @@ async def link_ingredient_to_recipe(recipe_id: str, request: Request):
         raise HTTPException(status_code=400, detail="master_ingredient_id is required")
 
     result = link_recipe_ingredient(recipe_id, ingredient_index, master_ingredient_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Recipe or ingredient not found")
+
+    return {"status": "ok", "recipe": result}
+
+
+@app.post("/api/recipes/{recipe_id}/ingredients")
+async def add_ingredient_to_recipe(recipe_id: str, request: Request):
+    """
+    Add a new ingredient to a recipe.
+    Body: { "name": "string", "quantity": number, "unit": "string", "master_ingredient_id": "string" (optional) }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    if not body.get("name"):
+        raise HTTPException(status_code=400, detail="name is required")
+
+    result = add_recipe_ingredient(recipe_id, body)
+    if not result:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    return {"status": "ok", "recipe": result}
+
+
+@app.put("/api/recipes/{recipe_id}/ingredients/{ingredient_index}")
+async def update_ingredient_in_recipe(recipe_id: str, ingredient_index: int, request: Request):
+    """
+    Update an ingredient within a recipe.
+    Body: { "name": "string", "quantity": number, "unit": "string", "master_ingredient_id": "string" }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    result = update_recipe_ingredient(recipe_id, ingredient_index, body)
+    if not result:
+        raise HTTPException(status_code=404, detail="Recipe or ingredient not found")
+
+    return {"status": "ok", "recipe": result}
+
+
+@app.delete("/api/recipes/{recipe_id}/ingredients/{ingredient_index}")
+async def remove_ingredient_from_recipe(recipe_id: str, ingredient_index: int):
+    """Delete an ingredient from a recipe."""
+    result = delete_recipe_ingredient(recipe_id, ingredient_index)
     if not result:
         raise HTTPException(status_code=404, detail="Recipe or ingredient not found")
 

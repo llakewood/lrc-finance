@@ -12,6 +12,7 @@ import {
   deleteIngredient,
   getIngredientCategories,
   type IngredientUpdateData,
+  type IngredientCreateData,
 } from '../lib/api'
 import { recipeKeys } from './use-recipes'
 
@@ -64,7 +65,7 @@ export function useCreateIngredient() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (data: Omit<Ingredient, 'id'>) => createIngredient(data),
+    mutationFn: (data: IngredientCreateData) => createIngredient(data),
     onSuccess: () => {
       // Invalidate ingredient lists and categories
       queryClient.invalidateQueries({ queryKey: ingredientKeys.lists() })

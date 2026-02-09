@@ -519,6 +519,153 @@ def link_recipe_ingredient(recipe_id: str, ingredient_index: int, master_ingredi
     return recipe_to_dict(recipe)
 
 
+def add_recipe_ingredient(recipe_id: str, ingredient_data: dict) -> Optional[dict]:
+    """
+    Add a new ingredient to a recipe.
+    ingredient_data should contain: name, quantity, unit (optional), master_ingredient_id (optional)
+    """
+    _ensure_loaded()
+
+    recipe = get_recipe_by_id(recipe_id)
+    if not recipe:
+        return None
+
+    name = ingredient_data.get('name', '').strip()
+    if not name:
+        return None
+
+    quantity = ingredient_data.get('quantity', 0)
+    try:
+        quantity = float(quantity)
+    except (ValueError, TypeError):
+        quantity = 0
+
+    unit = ingredient_data.get('unit', '')
+    master_id = ingredient_data.get('master_ingredient_id')
+
+    # Get cost from master ingredient if linked
+    unit_cost = 0
+    total_cost = None
+    match_confidence = None
+    match_reason = None
+
+    if master_id:
+        master = _ingredients_by_id.get(master_id)
+        if master and master.cost_per_unit:
+            unit_cost = master.cost_per_unit
+            total_cost = quantity * unit_cost
+            match_confidence = 1.0
+            match_reason = 'manual'
+
+    # Create the new ingredient
+    new_ing = RecipeIngredient(
+        name=name,
+        quantity=quantity,
+        unit_cost=unit_cost,
+        total_cost=total_cost,
+        ingredient_id=master_id,
+        match_confidence=match_confidence,
+        match_reason=match_reason,
+    )
+    new_ing.unit = unit
+
+    recipe.ingredients.append(new_ing)
+
+    # Recalculate recipe costs
+    recipe.recalculate_costs(_ingredients_by_id)
+
+    # Save
+    _save_recipes()
+
+    return recipe_to_dict(recipe)
+
+
+def update_recipe_ingredient(recipe_id: str, ingredient_index: int, updates: dict) -> Optional[dict]:
+    """
+    Update a recipe ingredient's properties.
+    Editable fields: name, quantity, unit, master_ingredient_id
+    """
+    _ensure_loaded()
+
+    recipe = get_recipe_by_id(recipe_id)
+    if not recipe:
+        return None
+
+    if ingredient_index < 0 or ingredient_index >= len(recipe.ingredients):
+        return None
+
+    ing = recipe.ingredients[ingredient_index]
+
+    # Update name
+    if 'name' in updates:
+        ing.name = updates['name'].strip()
+
+    # Update quantity
+    if 'quantity' in updates:
+        try:
+            ing.quantity = float(updates['quantity'])
+        except (ValueError, TypeError):
+            pass
+
+    # Update unit
+    if 'unit' in updates:
+        ing.unit = updates['unit']
+
+    # Update master ingredient link
+    if 'master_ingredient_id' in updates:
+        master_id = updates['master_ingredient_id']
+        if master_id:
+            master = _ingredients_by_id.get(master_id)
+            if master:
+                ing.ingredient_id = master_id
+                ing.match_confidence = 1.0
+                ing.match_reason = 'manual'
+                if master.cost_per_unit:
+                    ing.unit_cost = master.cost_per_unit
+        else:
+            # Unlink
+            ing.ingredient_id = None
+            ing.match_confidence = None
+            ing.match_reason = None
+
+    # Recalculate total cost
+    if ing.quantity is not None and ing.unit_cost is not None:
+        ing.total_cost = ing.quantity * ing.unit_cost
+
+    # Recalculate recipe costs
+    recipe.recalculate_costs(_ingredients_by_id)
+
+    # Save
+    _save_recipes()
+
+    return recipe_to_dict(recipe)
+
+
+def delete_recipe_ingredient(recipe_id: str, ingredient_index: int) -> Optional[dict]:
+    """
+    Delete an ingredient from a recipe.
+    """
+    _ensure_loaded()
+
+    recipe = get_recipe_by_id(recipe_id)
+    if not recipe:
+        return None
+
+    if ingredient_index < 0 or ingredient_index >= len(recipe.ingredients):
+        return None
+
+    # Remove the ingredient
+    recipe.ingredients.pop(ingredient_index)
+
+    # Recalculate recipe costs
+    recipe.recalculate_costs(_ingredients_by_id)
+
+    # Save
+    _save_recipes()
+
+    return recipe_to_dict(recipe)
+
+
 def get_unlinked_ingredients() -> list[dict]:
     """Get all recipe ingredients that aren't linked to a master ingredient"""
     _ensure_loaded()
