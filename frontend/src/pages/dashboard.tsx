@@ -54,6 +54,21 @@ import {
   useDeleteIngredient,
   useIngredientCategories,
 } from '@/hooks/use-ingredients'
+import {
+  usePurchases,
+  useCreatePurchase,
+  useDeletePurchase,
+} from '@/hooks/use-purchases'
+import {
+  useSuppliers,
+  useCreateSupplier,
+  useUpdateSupplier,
+  useDeleteSupplier,
+} from '@/hooks/use-suppliers'
+import {
+  useInventory,
+  usePriceAlerts,
+} from '@/hooks/use-inventory'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -106,6 +121,29 @@ function DashboardContent() {
     master_ingredient_id: '' as string | null,
   })
 
+  // Purchasing tab state
+  const [showAddPurchase, setShowAddPurchase] = useState(false)
+  const [showAddSupplier, setShowAddSupplier] = useState(false)
+  const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null)
+  const [purchaseForm, setPurchaseForm] = useState({
+    ingredient_id: '',
+    date: new Date().toISOString().split('T')[0],
+    quantity: 0,
+    unit: '',
+    total_cost: 0,
+    supplier_id: '' as string | null,
+    invoice_number: '',
+    notes: '',
+  })
+  const [supplierForm, setSupplierForm] = useState({
+    name: '',
+    contact_name: '',
+    email: '',
+    phone: '',
+    payment_terms: '',
+    typical_lead_days: 0,
+  })
+
   // Financial data queries
   const { data: fiscalYears, isLoading: yearsLoading } = useFiscalYears()
   const { data: summary, isLoading: summaryLoading, error: summaryError } = useSummary(selectedYear)
@@ -137,6 +175,17 @@ function DashboardContent() {
   const createIngredient = useCreateIngredient()
   const updateIngredientMutation = useUpdateIngredient()
   const deleteIngredientMutation = useDeleteIngredient()
+
+  // Purchasing data queries
+  const { data: purchases, isLoading: purchasesLoading } = usePurchases()
+  const { data: suppliers, isLoading: suppliersLoading } = useSuppliers()
+  const { data: inventory, isLoading: inventoryLoading } = useInventory()
+  const { data: priceAlerts } = usePriceAlerts()
+  const createPurchase = useCreatePurchase()
+  const deletePurchaseMutation = useDeletePurchase()
+  const createSupplier = useCreateSupplier()
+  const updateSupplierMutation = useUpdateSupplier()
+  const deleteSupplierMutation = useDeleteSupplier()
 
   const isLive = squareStatus?.connected ?? false
   const isLoading = summaryLoading || expensesLoading || benchmarksLoading || debtLoading || metricsLoading || cashFlowLoading
@@ -195,6 +244,12 @@ function DashboardContent() {
       percentOfTotal: item.pct_of_revenue,
     }))
   }, [productMix])
+
+  // Compute low stock ingredients from ingredients array
+  const lowStockIngredients = useMemo(() => {
+    if (!ingredients) return []
+    return ingredients.filter((i) => i.is_low_stock)
+  }, [ingredients])
 
   // Map team members to TeamMemberCard props
   const teamMembers = useMemo(() => {
@@ -475,6 +530,151 @@ function DashboardContent() {
     )
   }
 
+  // =========================================
+  // Purchasing Handlers
+  // =========================================
+
+  // Get ingredient name by ID
+  const getIngredientName = (id: string) => {
+    return ingredients?.find((i) => i.id === id)?.name ?? 'Unknown'
+  }
+
+  // Get supplier name by ID
+  const getSupplierName = (id: string | null) => {
+    if (!id) return '-'
+    return suppliers?.find((s) => s.id === id)?.name ?? 'Unknown'
+  }
+
+  // Handle add purchase
+  const handleAddPurchase = () => {
+    if (!purchaseForm.ingredient_id || !purchaseForm.quantity || !purchaseForm.total_cost) return
+    createPurchase.mutate(
+      {
+        ingredient_id: purchaseForm.ingredient_id,
+        date: purchaseForm.date,
+        quantity: purchaseForm.quantity,
+        unit: purchaseForm.unit,
+        total_cost: purchaseForm.total_cost,
+        supplier_id: purchaseForm.supplier_id || null,
+        invoice_number: purchaseForm.invoice_number || null,
+        notes: purchaseForm.notes || null,
+      },
+      {
+        onSuccess: () => {
+          setShowAddPurchase(false)
+          setPurchaseForm({
+            ingredient_id: '',
+            date: new Date().toISOString().split('T')[0],
+            quantity: 0,
+            unit: '',
+            total_cost: 0,
+            supplier_id: null,
+            invoice_number: '',
+            notes: '',
+          })
+        },
+        onError: (error) => {
+          window.alert(`Failed to add purchase: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        },
+      }
+    )
+  }
+
+  // Handle delete purchase
+  const handleDeletePurchase = (id: string) => {
+    const confirmed = window.confirm('Delete this purchase record?')
+    if (!confirmed) return
+    deletePurchaseMutation.mutate(id, {
+      onError: (error) => {
+        window.alert(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      },
+    })
+  }
+
+  // Handle add supplier
+  const handleAddSupplier = () => {
+    if (!supplierForm.name) return
+    createSupplier.mutate(
+      {
+        name: supplierForm.name,
+        contact_name: supplierForm.contact_name || null,
+        email: supplierForm.email || null,
+        phone: supplierForm.phone || null,
+        payment_terms: supplierForm.payment_terms || null,
+        typical_lead_days: supplierForm.typical_lead_days || null,
+      },
+      {
+        onSuccess: () => {
+          setShowAddSupplier(false)
+          setSupplierForm({
+            name: '',
+            contact_name: '',
+            email: '',
+            phone: '',
+            payment_terms: '',
+            typical_lead_days: 0,
+          })
+        },
+        onError: (error) => {
+          window.alert(`Failed to add supplier: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        },
+      }
+    )
+  }
+
+  // Start editing a supplier
+  const startSupplierEdit = (supplier: NonNullable<typeof suppliers>[number]) => {
+    setEditingSupplierId(supplier.id)
+    setSupplierForm({
+      name: supplier.name,
+      contact_name: supplier.contact_name || '',
+      email: supplier.email || '',
+      phone: supplier.phone || '',
+      payment_terms: supplier.payment_terms || '',
+      typical_lead_days: supplier.typical_lead_days || 0,
+    })
+  }
+
+  // Save supplier edit
+  const saveSupplierEdit = () => {
+    if (!editingSupplierId) return
+    updateSupplierMutation.mutate(
+      {
+        id: editingSupplierId,
+        data: {
+          name: supplierForm.name,
+          contact_name: supplierForm.contact_name || null,
+          email: supplierForm.email || null,
+          phone: supplierForm.phone || null,
+          payment_terms: supplierForm.payment_terms || null,
+          typical_lead_days: supplierForm.typical_lead_days || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          setEditingSupplierId(null)
+        },
+        onError: (error) => {
+          window.alert(`Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        },
+      }
+    )
+  }
+
+  // Delete supplier
+  const handleDeleteSupplier = (id: string, name: string) => {
+    const confirmed = window.confirm(`Delete supplier "${name}"?`)
+    if (!confirmed) return
+    deleteSupplierMutation.mutate(id, {
+      onError: (error) => {
+        window.alert(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      },
+    })
+  }
+
+  // Count alerts for badge
+  const alertCount = lowStockIngredients.length + (priceAlerts?.length ?? 0)
+
   return (
     <DashboardLayout
       liveData={isLive}
@@ -517,6 +717,16 @@ function DashboardContent() {
               </span>
             </TabsTrigger>
             <TabsTrigger value="recipes">Recipe Costing</TabsTrigger>
+            <TabsTrigger value="inventory">
+              <span className="flex items-center gap-2">
+                Inventory
+                {alertCount > 0 && (
+                  <Badge variant="warning" size="sm">
+                    {alertCount}
+                  </Badge>
+                )}
+              </span>
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Financial Overview */}
@@ -1273,246 +1483,737 @@ function DashboardContent() {
                       )}
                     </SectionLayout>
                   </GridLayout>
+                </>
+              )}
+            </div>
+          </TabsContent>
 
-                  {/* Master Ingredients Section */}
-                  <SectionLayout
-                    title="Master Ingredients (Costing Sheet)"
-                    actions={
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => setShowAddIngredient(!showAddIngredient)}
-                      >
-                        {showAddIngredient ? 'Cancel' : '+ Add Ingredient'}
-                      </Button>
-                    }
-                  >
-                    {/* Add Ingredient Form */}
-                    {showAddIngredient && (
-                      <div className="bg-surface-card border border-border rounded-lg p-4 mb-4">
-                        <h4 className="text-sm font-semibold mb-4">Add New Ingredient</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div>
-                            <label className="block text-xs text-text-muted mb-1">Name *</label>
-                            <Input
-                              value={newIngredient.name}
-                              onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })}
-                              placeholder="Ingredient name"
-                              inputSize="sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-text-muted mb-1">Category</label>
-                            <Input
-                              value={newIngredient.category}
-                              onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })}
-                              placeholder="Category"
-                              inputSize="sm"
-                              list="category-list"
-                            />
-                            <datalist id="category-list">
-                              {ingredientCategories?.map((cat) => (
-                                <option key={cat} value={cat} />
-                              ))}
-                            </datalist>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-text-muted mb-1">Unit *</label>
-                            <Input
-                              value={newIngredient.unit}
-                              onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })}
-                              placeholder="e.g., oz, lb, each"
-                              inputSize="sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-text-muted mb-1">Cost per Unit ($)</label>
-                            <Input
-                              type="number"
-                              value={newIngredient.unit_cost || ''}
-                              onChange={(e) => setNewIngredient({ ...newIngredient, unit_cost: parseFloat(e.target.value) || 0 })}
-                              placeholder="0.00"
-                              inputSize="sm"
-                              step="0.01"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex gap-2 mt-4">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={handleAddIngredient}
-                            disabled={createIngredient.isPending || !newIngredient.name || !newIngredient.unit}
-                          >
-                            {createIngredient.isPending ? 'Saving...' : 'Save Ingredient'}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowAddIngredient(false)}
-                          >
-                            Cancel
-                          </Button>
+          {/* Tab 4: Inventory */}
+          <TabsContent value="inventory">
+            <div className="space-y-8">
+              {/* Alerts Banner */}
+              {lowStockIngredients.length > 0 && (
+                <AlertBanner
+                  variant="warning"
+                  title="Low Stock Alert"
+                  description={`${lowStockIngredients.length} items are below minimum stock levels.`}
+                />
+              )}
+              {(priceAlerts?.length ?? 0) > 0 && (
+                <AlertBanner
+                  variant="info"
+                  title="Price Changes Detected"
+                  description={`${priceAlerts?.length} ingredients have had significant price changes in the last 30 days.`}
+                />
+              )}
+
+              {/* Summary Metrics */}
+              <SectionLayout title="Purchasing Overview">
+                <GridLayout columns={4}>
+                  <MetricCard
+                    label="Total Ingredients"
+                    value={ingredients?.length ?? 0}
+                    info="Number of master ingredients in the system."
+                  />
+                  <MetricCard
+                    label="Low Stock Items"
+                    value={lowStockIngredients.length}
+                    info="Items below their minimum stock level that need reordering."
+                  />
+                  <MetricCard
+                    label="Purchases (90 days)"
+                    value={purchases?.length ?? 0}
+                    info="Number of purchase records in the last 90 days."
+                  />
+                  <MetricCard
+                    label="Price Alerts"
+                    value={priceAlerts?.length ?? 0}
+                    info="Ingredients with price changes greater than 5% in the last 30 days."
+                  />
+                </GridLayout>
+              </SectionLayout>
+
+              {/* Alerts Panel + Recent Purchases */}
+              <GridLayout columns={2}>
+                {/* Alerts Panel */}
+                <SectionLayout title="Alerts" variant="card">
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                    {/* Low Stock Alerts */}
+                    {lowStockIngredients.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">Low Stock</h4>
+                        <div className="space-y-2">
+                          {lowStockIngredients.map((ingredient) => (
+                            <div key={ingredient.id} className="flex justify-between items-center py-2 px-3 bg-warning/10 rounded-lg">
+                              <span className="text-sm font-medium">{ingredient.name}</span>
+                              <span className="text-sm text-warning">
+                                {ingredient.current_stock ?? 0} / {ingredient.min_stock_level} {ingredient.stock_unit}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
 
-                    {/* Ingredients Search */}
-                    <div className="mb-4">
-                      <Input
-                        placeholder="Search by name or supplier..."
-                        value={ingredientFilter}
-                        onChange={(e) => setIngredientFilter(e.target.value)}
-                        inputSize="sm"
-                      />
-                    </div>
+                    {/* Price Alerts */}
+                    {priceAlerts && priceAlerts.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">Price Changes</h4>
+                        <div className="space-y-2">
+                          {priceAlerts.map((alert, index) => (
+                            <div key={index} className="flex justify-between items-center py-2 px-3 bg-info/10 rounded-lg">
+                              <div>
+                                <span className="text-sm font-medium">{getIngredientName(alert.ingredient_id)}</span>
+                                <span className="text-xs text-text-muted ml-2">{alert.date}</span>
+                              </div>
+                              <span className={cn(
+                                'text-sm font-medium',
+                                alert.change_percent > 0 ? 'text-status-error' : 'text-status-success'
+                              )}>
+                                {alert.change_percent > 0 ? '+' : ''}{alert.change_percent.toFixed(1)}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-                    {/* Ingredients Table */}
-                    <div className="bg-surface-card border border-border rounded-lg">
-                      <div className="max-h-[500px] overflow-y-auto">
-                        <table className="w-full">
-                          <thead className="sticky top-0 bg-surface-card">
-                            <tr className="border-b border-border">
-                              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Ingredient</th>
-                              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Category</th>
-                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Cost</th>
-                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Units</th>
-                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Cost/Unit</th>
-                              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Supplier</th>
-                              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Used In</th>
-                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {ingredientsLoading ? (
-                              <tr>
-                                <td colSpan={8} className="py-8 text-center">
-                                  <Spinner />
-                                </td>
-                              </tr>
-                            ) : filteredIngredients.map((ingredient) => (
-                              editingIngredientId === ingredient.id ? (
-                                // EDIT MODE ROW
-                                <tr key={ingredient.id} className="border-b border-border bg-primary/5">
-                                  <td className="py-2 px-3">
-                                    <Input
-                                      value={ingredientEditForm.name}
-                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, name: e.target.value })}
-                                      inputSize="sm"
-                                      placeholder="Name"
-                                    />
-                                  </td>
-                                  <td className="py-2 px-3">
-                                    <Input
-                                      value={ingredientEditForm.category}
-                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, category: e.target.value })}
-                                      inputSize="sm"
-                                      placeholder="Category"
-                                      list="category-list"
-                                    />
-                                  </td>
-                                  <td className="py-2 px-3">
-                                    <Input
-                                      type="number"
-                                      value={ingredientEditForm.cost || ''}
-                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, cost: parseFloat(e.target.value) || 0 })}
-                                      inputSize="sm"
-                                      step="0.01"
-                                      className="text-right"
-                                    />
-                                  </td>
-                                  <td className="py-2 px-3">
-                                    <Input
-                                      type="number"
-                                      value={ingredientEditForm.units || ''}
-                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, units: parseFloat(e.target.value) || 0 })}
-                                      inputSize="sm"
-                                      step="1"
-                                      className="text-right"
-                                    />
-                                  </td>
-                                  <td className="py-2 px-3 text-sm text-right text-text-muted">
-                                    {ingredientEditForm.cost && ingredientEditForm.units
-                                      ? formatCurrency(ingredientEditForm.cost / ingredientEditForm.units, { decimals: 4 })
-                                      : '--'}
-                                  </td>
-                                  <td className="py-2 px-3">
-                                    <Input
-                                      value={ingredientEditForm.supplier}
-                                      onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, supplier: e.target.value })}
-                                      inputSize="sm"
-                                      placeholder="Supplier"
-                                    />
-                                  </td>
-                                  <td className="py-2 px-3 text-sm text-text-muted">
-                                    {ingredientRecipeMap[ingredient.id]?.length
-                                      ? ingredientRecipeMap[ingredient.id].join(', ')
-                                      : '-'}
-                                  </td>
-                                  <td className="py-2 px-3">
-                                    <div className="flex gap-1 justify-end">
-                                      <Button
-                                        variant="primary"
-                                        size="sm"
-                                        onClick={saveIngredientEdit}
-                                        disabled={updateIngredientMutation.isPending}
-                                      >
-                                        {updateIngredientMutation.isPending ? 'Saving...' : 'Save'}
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={cancelIngredientEdit}
-                                        disabled={updateIngredientMutation.isPending}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ) : (
-                                // VIEW MODE ROW
-                                <tr
-                                  key={ingredient.id}
-                                  className="border-b border-border hover:bg-surface-bg cursor-pointer"
-                                  onClick={() => startIngredientEdit(ingredient)}
-                                >
-                                  <td className="py-3 px-4 text-sm">{ingredient.name}</td>
-                                  <td className="py-3 px-4 text-sm text-text-muted">{ingredient.category || '-'}</td>
-                                  <td className="py-3 px-4 text-sm text-right">{ingredient.cost ? formatCurrency(ingredient.cost, { decimals: 2 }) : '-'}</td>
-                                  <td className="py-3 px-4 text-sm text-right">{ingredient.units || '-'}</td>
-                                  <td className="py-3 px-4 text-sm text-right">{formatCurrency(ingredient.unit_cost, { decimals: 4 })}</td>
-                                  <td className="py-3 px-4 text-sm text-text-muted">{ingredient.supplier || '-'}</td>
-                                  <td className="py-3 px-4 text-sm text-text-muted">
-                                    {ingredientRecipeMap[ingredient.id]?.length
-                                      ? ingredientRecipeMap[ingredient.id].join(', ')
-                                      : '-'}
-                                  </td>
-                                  <td className="py-3 px-4 text-right">
-                                    <Button
-                                      type="button"
-                                      variant="danger"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        e.preventDefault()
-                                        handleDeleteIngredient(ingredient.id, ingredient.name)
-                                      }}
-                                      disabled={deleteIngredientMutation.isPending}
-                                    >
-                                      Delete
-                                    </Button>
-                                  </td>
-                                </tr>
-                              )
+                    {/* No Alerts */}
+                    {lowStockIngredients.length === 0 && (!priceAlerts || priceAlerts.length === 0) && (
+                      <div className="text-center text-text-muted py-8">
+                        No alerts at this time
+                      </div>
+                    )}
+                  </div>
+                </SectionLayout>
+
+                {/* Recent Purchases */}
+                <SectionLayout
+                  title="Recent Purchases"
+                  variant="card"
+                  actions={
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setShowAddPurchase(!showAddPurchase)}
+                    >
+                      {showAddPurchase ? 'Cancel' : '+ Add Purchase'}
+                    </Button>
+                  }
+                >
+                  {/* Add Purchase Form */}
+                  {showAddPurchase && (
+                    <div className="bg-surface-bg p-4 rounded-lg mb-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Ingredient *</label>
+                          <select
+                            className="w-full h-8 px-2 text-sm border border-border rounded-md bg-surface-card"
+                            value={purchaseForm.ingredient_id}
+                            onChange={(e) => setPurchaseForm({ ...purchaseForm, ingredient_id: e.target.value })}
+                          >
+                            <option value="">-- Select --</option>
+                            {ingredients?.map((ing) => (
+                              <option key={ing.id} value={ing.id}>{ing.name}</option>
                             ))}
-                          </tbody>
-                        </table>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Date</label>
+                          <Input
+                            type="date"
+                            value={purchaseForm.date}
+                            onChange={(e) => setPurchaseForm({ ...purchaseForm, date: e.target.value })}
+                            inputSize="sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Quantity *</label>
+                          <Input
+                            type="number"
+                            value={purchaseForm.quantity || ''}
+                            onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity: parseFloat(e.target.value) || 0 })}
+                            inputSize="sm"
+                            step="0.01"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Unit</label>
+                          <Input
+                            value={purchaseForm.unit}
+                            onChange={(e) => setPurchaseForm({ ...purchaseForm, unit: e.target.value })}
+                            inputSize="sm"
+                            placeholder="lbs, oz, each..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Total Cost *</label>
+                          <Input
+                            type="number"
+                            value={purchaseForm.total_cost || ''}
+                            onChange={(e) => setPurchaseForm({ ...purchaseForm, total_cost: parseFloat(e.target.value) || 0 })}
+                            inputSize="sm"
+                            step="0.01"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Supplier</label>
+                          <select
+                            className="w-full h-8 px-2 text-sm border border-border rounded-md bg-surface-card"
+                            value={purchaseForm.supplier_id || ''}
+                            onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier_id: e.target.value || null })}
+                          >
+                            <option value="">-- None --</option>
+                            {suppliers?.map((s) => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Invoice #</label>
+                          <Input
+                            value={purchaseForm.invoice_number}
+                            onChange={(e) => setPurchaseForm({ ...purchaseForm, invoice_number: e.target.value })}
+                            inputSize="sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Notes</label>
+                          <Input
+                            value={purchaseForm.notes}
+                            onChange={(e) => setPurchaseForm({ ...purchaseForm, notes: e.target.value })}
+                            inputSize="sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={handleAddPurchase}
+                          disabled={createPurchase.isPending || !purchaseForm.ingredient_id || !purchaseForm.quantity || !purchaseForm.total_cost}
+                        >
+                          {createPurchase.isPending ? 'Saving...' : 'Save Purchase'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowAddPurchase(false)}
+                        >
+                          Cancel
+                        </Button>
                       </div>
                     </div>
-                  </SectionLayout>
-                </>
-              )}
+                  )}
+
+                  {/* Purchases Table */}
+                  <div className="max-h-[350px] overflow-y-auto">
+                    {purchasesLoading ? (
+                      <div className="flex justify-center py-8"><Spinner /></div>
+                    ) : purchases && purchases.length > 0 ? (
+                      <table className="w-full">
+                        <thead className="sticky top-0 bg-surface-card">
+                          <tr className="border-b border-border">
+                            <th className="text-left text-xs font-semibold text-text-muted uppercase py-2 px-2">Date</th>
+                            <th className="text-left text-xs font-semibold text-text-muted uppercase py-2 px-2">Item</th>
+                            <th className="text-right text-xs font-semibold text-text-muted uppercase py-2 px-2">Qty</th>
+                            <th className="text-right text-xs font-semibold text-text-muted uppercase py-2 px-2">Cost</th>
+                            <th className="text-right text-xs font-semibold text-text-muted uppercase py-2 px-2">$/Unit</th>
+                            <th className="text-right text-xs font-semibold text-text-muted uppercase py-2 px-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {purchases.slice(0, 10).map((purchase) => (
+                            <tr key={purchase.id} className="border-b border-border hover:bg-surface-bg">
+                              <td className="py-2 px-2 text-sm">{purchase.date}</td>
+                              <td className="py-2 px-2 text-sm">{getIngredientName(purchase.ingredient_id)}</td>
+                              <td className="py-2 px-2 text-sm text-right">{purchase.quantity} {purchase.unit}</td>
+                              <td className="py-2 px-2 text-sm text-right">{formatCurrency(purchase.total_cost, { decimals: 2 })}</td>
+                              <td className="py-2 px-2 text-sm text-right">{formatCurrency(purchase.unit_price, { decimals: 4 })}</td>
+                              <td className="py-2 px-2 text-right">
+                                <Button
+                                  type="button"
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => handleDeletePurchase(purchase.id)}
+                                  disabled={deletePurchaseMutation.isPending}
+                                >
+                                  Delete
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="text-center text-text-muted py-8">
+                        No purchases recorded yet
+                      </div>
+                    )}
+                  </div>
+                </SectionLayout>
+              </GridLayout>
+
+              {/* Master Ingredients */}
+              <SectionLayout
+                title="Ingredients"
+                actions={
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setShowAddIngredient(!showAddIngredient)}
+                  >
+                    {showAddIngredient ? 'Cancel' : '+ Add Ingredient'}
+                  </Button>
+                }
+              >
+                {/* Add Ingredient Form */}
+                {showAddIngredient && (
+                  <div className="bg-surface-card border border-border rounded-lg p-4 mb-4">
+                    <h4 className="text-sm font-semibold mb-4">Add New Ingredient</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Name *</label>
+                        <Input
+                          value={newIngredient.name}
+                          onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })}
+                          placeholder="Ingredient name"
+                          inputSize="sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Category</label>
+                        <Input
+                          value={newIngredient.category}
+                          onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })}
+                          placeholder="Category"
+                          inputSize="sm"
+                          list="category-list"
+                        />
+                        <datalist id="category-list">
+                          {ingredientCategories?.map((cat) => (
+                            <option key={cat} value={cat} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Unit *</label>
+                        <Input
+                          value={newIngredient.unit}
+                          onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })}
+                          placeholder="e.g., oz, lb, each"
+                          inputSize="sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Supplier</label>
+                        <select
+                          className="w-full h-8 px-2 text-sm border border-border rounded-md bg-surface-card"
+                          value={newIngredient.category}
+                          onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })}
+                        >
+                          <option value="">-- Select --</option>
+                          {suppliers?.map((s) => (
+                            <option key={s.id} value={s.name}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleAddIngredient}
+                        disabled={createIngredient.isPending || !newIngredient.name || !newIngredient.unit}
+                      >
+                        {createIngredient.isPending ? 'Saving...' : 'Save Ingredient'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAddIngredient(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Ingredients Search */}
+                <div className="mb-4">
+                  <Input
+                    placeholder="Search by name or supplier..."
+                    value={ingredientFilter}
+                    onChange={(e) => setIngredientFilter(e.target.value)}
+                    inputSize="sm"
+                  />
+                </div>
+
+                {/* Ingredients Table */}
+                <div className="bg-surface-card border border-border rounded-lg">
+                  <div className="max-h-[500px] overflow-y-auto">
+                    <table className="w-full">
+                      <thead className="sticky top-0 bg-surface-card">
+                        <tr className="border-b border-border">
+                          <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Ingredient</th>
+                          <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Category</th>
+                          <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Cost</th>
+                          <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Units</th>
+                          <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Cost/Unit</th>
+                          <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Supplier</th>
+                          <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Stock</th>
+                          <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ingredientsLoading ? (
+                          <tr>
+                            <td colSpan={8} className="py-8 text-center">
+                              <Spinner />
+                            </td>
+                          </tr>
+                        ) : filteredIngredients.map((ingredient) => (
+                          editingIngredientId === ingredient.id ? (
+                            // EDIT MODE ROW
+                            <tr key={ingredient.id} className="border-b border-border bg-primary/5">
+                              <td className="py-2 px-3">
+                                <Input
+                                  value={ingredientEditForm.name}
+                                  onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, name: e.target.value })}
+                                  inputSize="sm"
+                                  placeholder="Name"
+                                />
+                              </td>
+                              <td className="py-2 px-3">
+                                <Input
+                                  value={ingredientEditForm.category}
+                                  onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, category: e.target.value })}
+                                  inputSize="sm"
+                                  placeholder="Category"
+                                  list="category-list"
+                                />
+                              </td>
+                              <td className="py-2 px-3">
+                                <Input
+                                  type="number"
+                                  value={ingredientEditForm.cost || ''}
+                                  onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, cost: parseFloat(e.target.value) || 0 })}
+                                  inputSize="sm"
+                                  step="0.01"
+                                  className="text-right"
+                                />
+                              </td>
+                              <td className="py-2 px-3">
+                                <Input
+                                  type="number"
+                                  value={ingredientEditForm.units || ''}
+                                  onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, units: parseFloat(e.target.value) || 0 })}
+                                  inputSize="sm"
+                                  step="1"
+                                  className="text-right"
+                                />
+                              </td>
+                              <td className="py-2 px-3 text-sm text-right text-text-muted">
+                                {ingredientEditForm.cost && ingredientEditForm.units
+                                  ? formatCurrency(ingredientEditForm.cost / ingredientEditForm.units, { decimals: 4 })
+                                  : '--'}
+                              </td>
+                              <td className="py-2 px-3">
+                                <select
+                                  className="w-full h-8 px-2 text-sm border border-border rounded-md bg-surface-card"
+                                  value={ingredientEditForm.supplier}
+                                  onChange={(e) => setIngredientEditForm({ ...ingredientEditForm, supplier: e.target.value })}
+                                >
+                                  <option value="">-- None --</option>
+                                  {suppliers?.map((s) => (
+                                    <option key={s.id} value={s.name}>{s.name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="py-2 px-3 text-sm text-text-muted">
+                                {ingredient.current_stock ?? '-'}
+                              </td>
+                              <td className="py-2 px-3">
+                                <div className="flex gap-1 justify-end">
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={saveIngredientEdit}
+                                    disabled={updateIngredientMutation.isPending}
+                                  >
+                                    {updateIngredientMutation.isPending ? 'Saving...' : 'Save'}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={cancelIngredientEdit}
+                                    disabled={updateIngredientMutation.isPending}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            // VIEW MODE ROW
+                            <tr
+                              key={ingredient.id}
+                              className="border-b border-border hover:bg-surface-bg cursor-pointer"
+                              onClick={() => startIngredientEdit(ingredient)}
+                            >
+                              <td className="py-3 px-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                  {ingredient.name}
+                                  {ingredient.is_low_stock && <Badge variant="error" size="sm">Low</Badge>}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-text-muted">{ingredient.category || '-'}</td>
+                              <td className="py-3 px-4 text-sm text-right">{ingredient.cost ? formatCurrency(ingredient.cost, { decimals: 2 }) : '-'}</td>
+                              <td className="py-3 px-4 text-sm text-right">{ingredient.units || '-'}</td>
+                              <td className="py-3 px-4 text-sm text-right">{formatCurrency(ingredient.unit_cost, { decimals: 4 })}</td>
+                              <td className="py-3 px-4 text-sm text-text-muted">{ingredient.supplier || '-'}</td>
+                              <td className="py-3 px-4 text-sm">
+                                {ingredient.current_stock !== null && ingredient.current_stock !== undefined ? (
+                                  <span className={cn(
+                                    ingredient.stock_status === 'low' || ingredient.stock_status === 'critical' ? 'text-status-error' :
+                                    ingredient.stock_status === 'overstocked' ? 'text-status-warning' : ''
+                                  )}>
+                                    {ingredient.current_stock} {ingredient.stock_unit}
+                                  </span>
+                                ) : (
+                                  <span className="text-text-muted">-</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <Button
+                                  type="button"
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.preventDefault()
+                                    handleDeleteIngredient(ingredient.id, ingredient.name)
+                                  }}
+                                  disabled={deleteIngredientMutation.isPending}
+                                >
+                                  Delete
+                                </Button>
+                              </td>
+                            </tr>
+                          )
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </SectionLayout>
+
+              {/* Suppliers */}
+              <SectionLayout
+                title="Suppliers"
+                actions={
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setShowAddSupplier(!showAddSupplier)}
+                  >
+                    {showAddSupplier ? 'Cancel' : '+ Add Supplier'}
+                  </Button>
+                }
+              >
+                {/* Add Supplier Form */}
+                {showAddSupplier && (
+                  <div className="bg-surface-card border border-border rounded-lg p-4 mb-4">
+                    <h4 className="text-sm font-semibold mb-4">Add New Supplier</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Name *</label>
+                        <Input
+                          value={supplierForm.name}
+                          onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                          inputSize="sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Contact Name</label>
+                        <Input
+                          value={supplierForm.contact_name}
+                          onChange={(e) => setSupplierForm({ ...supplierForm, contact_name: e.target.value })}
+                          inputSize="sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Email</label>
+                        <Input
+                          type="email"
+                          value={supplierForm.email}
+                          onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
+                          inputSize="sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Phone</label>
+                        <Input
+                          value={supplierForm.phone}
+                          onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
+                          inputSize="sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Payment Terms</label>
+                        <Input
+                          value={supplierForm.payment_terms}
+                          onChange={(e) => setSupplierForm({ ...supplierForm, payment_terms: e.target.value })}
+                          inputSize="sm"
+                          placeholder="Net 30, COD, etc."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Lead Time (days)</label>
+                        <Input
+                          type="number"
+                          value={supplierForm.typical_lead_days || ''}
+                          onChange={(e) => setSupplierForm({ ...supplierForm, typical_lead_days: parseInt(e.target.value) || 0 })}
+                          inputSize="sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleAddSupplier}
+                        disabled={createSupplier.isPending || !supplierForm.name}
+                      >
+                        {createSupplier.isPending ? 'Saving...' : 'Save Supplier'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAddSupplier(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Suppliers Table */}
+                <div className="bg-surface-card border border-border rounded-lg">
+                  <div className="max-h-[400px] overflow-y-auto">
+                    {suppliersLoading ? (
+                      <div className="flex justify-center py-8"><Spinner /></div>
+                    ) : suppliers && suppliers.length > 0 ? (
+                      <table className="w-full">
+                        <thead className="sticky top-0 bg-surface-card">
+                          <tr className="border-b border-border">
+                            <th className="text-left text-xs font-semibold text-text-muted uppercase py-3 px-4">Name</th>
+                            <th className="text-left text-xs font-semibold text-text-muted uppercase py-3 px-4">Contact</th>
+                            <th className="text-left text-xs font-semibold text-text-muted uppercase py-3 px-4">Email</th>
+                            <th className="text-left text-xs font-semibold text-text-muted uppercase py-3 px-4">Phone</th>
+                            <th className="text-left text-xs font-semibold text-text-muted uppercase py-3 px-4">Terms</th>
+                            <th className="text-right text-xs font-semibold text-text-muted uppercase py-3 px-4">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {suppliers.map((supplier) =>
+                            editingSupplierId === supplier.id ? (
+                              // EDIT MODE
+                              <tr key={supplier.id} className="border-b border-border bg-primary/5">
+                                <td className="py-2 px-3">
+                                  <Input
+                                    value={supplierForm.name}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                                    inputSize="sm"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <Input
+                                    value={supplierForm.contact_name}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, contact_name: e.target.value })}
+                                    inputSize="sm"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <Input
+                                    value={supplierForm.email}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
+                                    inputSize="sm"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <Input
+                                    value={supplierForm.phone}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
+                                    inputSize="sm"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <Input
+                                    value={supplierForm.payment_terms}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, payment_terms: e.target.value })}
+                                    inputSize="sm"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <div className="flex gap-1 justify-end">
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={saveSupplierEdit}
+                                      disabled={updateSupplierMutation.isPending}
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setEditingSupplierId(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : (
+                              // VIEW MODE
+                              <tr
+                                key={supplier.id}
+                                className="border-b border-border hover:bg-surface-bg cursor-pointer"
+                                onClick={() => startSupplierEdit(supplier)}
+                              >
+                                <td className="py-3 px-4 text-sm font-medium">{supplier.name}</td>
+                                <td className="py-3 px-4 text-sm text-text-muted">{supplier.contact_name || '-'}</td>
+                                <td className="py-3 px-4 text-sm text-text-muted">{supplier.email || '-'}</td>
+                                <td className="py-3 px-4 text-sm text-text-muted">{supplier.phone || '-'}</td>
+                                <td className="py-3 px-4 text-sm text-text-muted">{supplier.payment_terms || '-'}</td>
+                                <td className="py-3 px-4 text-right">
+                                  <Button
+                                    type="button"
+                                    variant="danger"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteSupplier(supplier.id, supplier.name)
+                                    }}
+                                    disabled={deleteSupplierMutation.isPending}
+                                  >
+                                    Delete
+                                  </Button>
+                                </td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="text-center text-text-muted py-8">
+                        No suppliers added yet
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </SectionLayout>
             </div>
           </TabsContent>
         </Tabs>

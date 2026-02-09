@@ -42,6 +42,29 @@ from data.recipes import (
     update_recipe_ingredient,
     delete_recipe_ingredient,
 )
+from data.purchasing import (
+    # Purchases
+    get_all_purchases,
+    get_purchase,
+    create_purchase,
+    update_purchase,
+    delete_purchase,
+    get_purchases_by_ingredient,
+    # Suppliers
+    get_all_suppliers,
+    get_supplier,
+    create_supplier,
+    update_supplier,
+    delete_supplier,
+    # Inventory
+    get_all_inventory,
+    get_inventory_item,
+    update_inventory_item,
+    get_low_stock_items,
+    # Price History
+    get_price_history,
+    get_recent_price_changes,
+)
 
 
 # =============================================================================
@@ -1153,6 +1176,410 @@ async def remove_ingredient(ingredient_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Ingredient not found")
     return {"status": "ok", "deleted": ingredient_id}
+
+
+# =============================================================================
+# PURCHASING & INVENTORY API ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/purchases")
+async def list_purchases(
+    ingredient_id: Optional[str] = Query(default=None, description="Filter by ingredient ID"),
+    supplier_id: Optional[str] = Query(default=None, description="Filter by supplier ID"),
+    days: int = Query(default=90, ge=1, le=365, description="Number of days to look back"),
+):
+    """Get all purchases, optionally filtered"""
+    if ingredient_id:
+        purchases = get_purchases_by_ingredient(ingredient_id, days)
+    else:
+        purchases = get_all_purchases()
+        # Filter by date range
+        cutoff = (datetime.now() - timedelta(days=days)).date().isoformat()
+        purchases = [p for p in purchases if p.date >= cutoff]
+
+    # Filter by supplier if specified
+    if supplier_id:
+        purchases = [p for p in purchases if p.supplier_id == supplier_id]
+
+    # Sort by date descending
+    purchases.sort(key=lambda p: p.date, reverse=True)
+
+    return {
+        "purchases": [
+            {
+                "id": p.id,
+                "ingredient_id": p.ingredient_id,
+                "date": p.date,
+                "quantity": p.quantity,
+                "unit": p.unit,
+                "total_cost": p.total_cost,
+                "unit_price": p.unit_price,
+                "supplier_id": p.supplier_id,
+                "invoice_number": p.invoice_number,
+                "notes": p.notes,
+                "source": p.source,
+                "created_at": p.created_at,
+            }
+            for p in purchases
+        ],
+        "count": len(purchases),
+    }
+
+
+@app.get("/api/purchases/{purchase_id}")
+async def get_single_purchase(purchase_id: str):
+    """Get a single purchase by ID"""
+    purchase = get_purchase(purchase_id)
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    return {
+        "id": purchase.id,
+        "ingredient_id": purchase.ingredient_id,
+        "date": purchase.date,
+        "quantity": purchase.quantity,
+        "unit": purchase.unit,
+        "total_cost": purchase.total_cost,
+        "unit_price": purchase.unit_price,
+        "supplier_id": purchase.supplier_id,
+        "invoice_number": purchase.invoice_number,
+        "notes": purchase.notes,
+        "source": purchase.source,
+        "created_at": purchase.created_at,
+    }
+
+
+@app.post("/api/purchases")
+async def add_purchase(request: Request):
+    """Create a new purchase record"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    if not body.get("ingredient_id"):
+        raise HTTPException(status_code=400, detail="ingredient_id is required")
+    if not body.get("quantity"):
+        raise HTTPException(status_code=400, detail="quantity is required")
+    if not body.get("total_cost"):
+        raise HTTPException(status_code=400, detail="total_cost is required")
+
+    purchase = create_purchase(body)
+    return {
+        "status": "ok",
+        "purchase": {
+            "id": purchase.id,
+            "ingredient_id": purchase.ingredient_id,
+            "date": purchase.date,
+            "quantity": purchase.quantity,
+            "unit": purchase.unit,
+            "total_cost": purchase.total_cost,
+            "unit_price": purchase.unit_price,
+            "supplier_id": purchase.supplier_id,
+            "invoice_number": purchase.invoice_number,
+            "notes": purchase.notes,
+            "source": purchase.source,
+            "created_at": purchase.created_at,
+        },
+    }
+
+
+@app.put("/api/purchases/{purchase_id}")
+async def modify_purchase(purchase_id: str, request: Request):
+    """Update a purchase record"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    purchase = update_purchase(purchase_id, body)
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+
+    return {
+        "status": "ok",
+        "purchase": {
+            "id": purchase.id,
+            "ingredient_id": purchase.ingredient_id,
+            "date": purchase.date,
+            "quantity": purchase.quantity,
+            "unit": purchase.unit,
+            "total_cost": purchase.total_cost,
+            "unit_price": purchase.unit_price,
+            "supplier_id": purchase.supplier_id,
+            "invoice_number": purchase.invoice_number,
+            "notes": purchase.notes,
+            "source": purchase.source,
+            "created_at": purchase.created_at,
+        },
+    }
+
+
+@app.delete("/api/purchases/{purchase_id}")
+async def remove_purchase(purchase_id: str):
+    """Delete a purchase record"""
+    success = delete_purchase(purchase_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    return {"status": "ok", "deleted": purchase_id}
+
+
+# =============================================================================
+# SUPPLIERS API ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/suppliers")
+async def list_suppliers():
+    """Get all suppliers"""
+    suppliers = get_all_suppliers()
+    return {
+        "suppliers": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "contact_name": s.contact_name,
+                "email": s.email,
+                "phone": s.phone,
+                "address": s.address,
+                "payment_terms": s.payment_terms,
+                "typical_lead_days": s.typical_lead_days,
+                "notes": s.notes,
+                "created_at": s.created_at,
+            }
+            for s in suppliers
+        ],
+        "count": len(suppliers),
+    }
+
+
+@app.get("/api/suppliers/{supplier_id}")
+async def get_single_supplier(supplier_id: str):
+    """Get a single supplier by ID"""
+    supplier = get_supplier(supplier_id)
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return {
+        "id": supplier.id,
+        "name": supplier.name,
+        "contact_name": supplier.contact_name,
+        "email": supplier.email,
+        "phone": supplier.phone,
+        "address": supplier.address,
+        "payment_terms": supplier.payment_terms,
+        "typical_lead_days": supplier.typical_lead_days,
+        "notes": supplier.notes,
+        "created_at": supplier.created_at,
+    }
+
+
+@app.post("/api/suppliers")
+async def add_supplier(request: Request):
+    """Create a new supplier"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    if not body.get("name"):
+        raise HTTPException(status_code=400, detail="name is required")
+
+    supplier = create_supplier(body)
+    return {
+        "status": "ok",
+        "supplier": {
+            "id": supplier.id,
+            "name": supplier.name,
+            "contact_name": supplier.contact_name,
+            "email": supplier.email,
+            "phone": supplier.phone,
+            "address": supplier.address,
+            "payment_terms": supplier.payment_terms,
+            "typical_lead_days": supplier.typical_lead_days,
+            "notes": supplier.notes,
+            "created_at": supplier.created_at,
+        },
+    }
+
+
+@app.put("/api/suppliers/{supplier_id}")
+async def modify_supplier(supplier_id: str, request: Request):
+    """Update a supplier"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    supplier = update_supplier(supplier_id, body)
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+    return {
+        "status": "ok",
+        "supplier": {
+            "id": supplier.id,
+            "name": supplier.name,
+            "contact_name": supplier.contact_name,
+            "email": supplier.email,
+            "phone": supplier.phone,
+            "address": supplier.address,
+            "payment_terms": supplier.payment_terms,
+            "typical_lead_days": supplier.typical_lead_days,
+            "notes": supplier.notes,
+            "created_at": supplier.created_at,
+        },
+    }
+
+
+@app.delete("/api/suppliers/{supplier_id}")
+async def remove_supplier(supplier_id: str):
+    """Delete a supplier"""
+    success = delete_supplier(supplier_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return {"status": "ok", "deleted": supplier_id}
+
+
+# =============================================================================
+# INVENTORY API ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/inventory")
+async def list_inventory():
+    """Get all inventory items"""
+    inventory = get_all_inventory()
+    return {
+        "inventory": [
+            {
+                "ingredient_id": item.ingredient_id,
+                "current_quantity": item.current_quantity,
+                "unit": item.unit,
+                "min_stock_level": item.min_stock_level,
+                "max_stock_level": item.max_stock_level,
+                "last_updated": item.last_updated,
+            }
+            for item in inventory
+        ],
+        "count": len(inventory),
+    }
+
+
+@app.get("/api/inventory/{ingredient_id}")
+async def get_inventory_for_ingredient(ingredient_id: str):
+    """Get inventory for a specific ingredient"""
+    item = get_inventory_item(ingredient_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+    return {
+        "ingredient_id": item.ingredient_id,
+        "current_quantity": item.current_quantity,
+        "unit": item.unit,
+        "min_stock_level": item.min_stock_level,
+        "max_stock_level": item.max_stock_level,
+        "last_updated": item.last_updated,
+    }
+
+
+@app.put("/api/inventory/{ingredient_id}")
+async def modify_inventory(ingredient_id: str, request: Request):
+    """Update inventory for an ingredient"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    item = update_inventory_item(ingredient_id, body)
+    if not item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    return {
+        "status": "ok",
+        "inventory": {
+            "ingredient_id": item.ingredient_id,
+            "current_quantity": item.current_quantity,
+            "unit": item.unit,
+            "min_stock_level": item.min_stock_level,
+            "max_stock_level": item.max_stock_level,
+            "last_updated": item.last_updated,
+        },
+    }
+
+
+@app.get("/api/analytics/low-stock")
+async def get_low_stock():
+    """Get items that are below their minimum stock level"""
+    low_stock = get_low_stock_items()
+    return {
+        "low_stock": [
+            {
+                "ingredient_id": item.ingredient_id,
+                "current_quantity": item.current_quantity,
+                "unit": item.unit,
+                "min_stock_level": item.min_stock_level,
+                "shortage": item.min_stock_level - item.current_quantity,
+            }
+            for item in low_stock
+        ],
+        "count": len(low_stock),
+    }
+
+
+# =============================================================================
+# PRICE ANALYTICS API ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/analytics/price-history")
+async def get_ingredient_price_history(
+    ingredient_id: str = Query(..., description="Ingredient ID"),
+    days: int = Query(default=90, ge=1, le=365, description="Number of days to look back"),
+):
+    """Get price history for a specific ingredient"""
+    history = get_price_history(ingredient_id, days)
+    return {
+        "ingredient_id": ingredient_id,
+        "history": [
+            {
+                "date": h.date,
+                "unit_price": h.unit_price,
+                "previous_price": h.previous_price,
+                "change_percent": h.change_percent,
+                "supplier_id": h.supplier_id,
+            }
+            for h in history
+        ],
+        "count": len(history),
+    }
+
+
+@app.get("/api/analytics/price-alerts")
+async def get_price_alerts(
+    days: int = Query(default=30, ge=1, le=365, description="Number of days to look back"),
+    min_change_percent: float = Query(default=5.0, description="Minimum % change to include"),
+):
+    """Get recent price changes that exceed a threshold"""
+    changes = get_recent_price_changes(days)
+    # Filter by minimum change percent
+    significant_changes = [
+        c for c in changes
+        if abs(c.change_percent) >= min_change_percent
+    ]
+
+    return {
+        "alerts": [
+            {
+                "ingredient_id": c.ingredient_id,
+                "date": c.date,
+                "unit_price": c.unit_price,
+                "previous_price": c.previous_price,
+                "change_percent": c.change_percent,
+                "supplier_id": c.supplier_id,
+            }
+            for c in significant_changes
+        ],
+        "count": len(significant_changes),
+    }
 
 
 if __name__ == "__main__":

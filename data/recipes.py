@@ -29,7 +29,7 @@ def generate_recipe_id(name: str) -> str:
 
 @dataclass
 class Ingredient:
-    """Master ingredient"""
+    """Master ingredient with stock management"""
     name: str
     category: str
     id: str = ""
@@ -39,8 +39,15 @@ class Ingredient:
     unit_sale: Optional[float] = None  # Retail price per unit
     unit_profit: Optional[float] = None
     case_profit: Optional[float] = None
-    supplier: Optional[str] = None
+    supplier: Optional[str] = None  # Supplier name (for display)
+    supplier_id: Optional[str] = None  # Link to suppliers.json
     notes: Optional[str] = None
+    # Stock management fields
+    current_stock: Optional[float] = None
+    min_stock_level: Optional[float] = None
+    max_stock_level: Optional[float] = None
+    reorder_point: Optional[float] = None
+    stock_unit: str = "units"
 
     def __post_init__(self):
         if not self.id:
@@ -57,6 +64,26 @@ class Ingredient:
             self.unit_profit = self.unit_sale - self.cost_per_unit
         else:
             self.unit_profit = None
+
+    @property
+    def is_low_stock(self) -> bool:
+        """Check if current stock is below minimum level"""
+        if self.current_stock is None or self.min_stock_level is None:
+            return False
+        return self.current_stock < self.min_stock_level
+
+    @property
+    def stock_status(self) -> str:
+        """Get stock status: 'ok', 'low', 'critical', 'overstocked', or 'unknown'"""
+        if self.current_stock is None:
+            return "unknown"
+        if self.min_stock_level and self.current_stock <= 0:
+            return "critical"
+        if self.min_stock_level and self.current_stock < self.min_stock_level:
+            return "low"
+        if self.max_stock_level and self.current_stock > self.max_stock_level:
+            return "overstocked"
+        return "ok"
 
 
 @dataclass
@@ -174,7 +201,14 @@ def _load_ingredients_from_json() -> list[Ingredient]:
             unit_profit=item.get('unit_profit'),
             case_profit=item.get('case_profit'),
             supplier=item.get('supplier'),
+            supplier_id=item.get('supplier_id'),
             notes=item.get('notes'),
+            # Stock management fields
+            current_stock=item.get('current_stock'),
+            min_stock_level=item.get('min_stock_level'),
+            max_stock_level=item.get('max_stock_level'),
+            reorder_point=item.get('reorder_point'),
+            stock_unit=item.get('stock_unit', 'units'),
         )
         ing.recalculate()
         ingredients.append(ing)
@@ -243,7 +277,14 @@ def _save_ingredients():
             'unit_profit': round(ing.unit_profit, 2) if ing.unit_profit else None,
             'case_profit': ing.case_profit,
             'supplier': ing.supplier,
+            'supplier_id': ing.supplier_id,
             'notes': ing.notes,
+            # Stock management fields
+            'current_stock': ing.current_stock,
+            'min_stock_level': ing.min_stock_level,
+            'max_stock_level': ing.max_stock_level,
+            'reorder_point': ing.reorder_point,
+            'stock_unit': ing.stock_unit,
         })
 
     with open(INGREDIENTS_FILE, 'w') as f:
@@ -705,7 +746,16 @@ def ingredient_to_dict(ing: Ingredient) -> dict:
         "unit_profit": round(ing.unit_profit, 2) if ing.unit_profit else None,
         "case_profit": ing.case_profit,
         "supplier": ing.supplier,
+        "supplier_id": ing.supplier_id,
         "notes": ing.notes,
+        # Stock management
+        "current_stock": ing.current_stock,
+        "min_stock_level": ing.min_stock_level,
+        "max_stock_level": ing.max_stock_level,
+        "reorder_point": ing.reorder_point,
+        "stock_unit": ing.stock_unit,
+        "stock_status": ing.stock_status,
+        "is_low_stock": ing.is_low_stock,
     }
 
 
