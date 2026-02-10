@@ -41,6 +41,7 @@ from data.recipes import (
     add_recipe_ingredient,
     update_recipe_ingredient,
     delete_recipe_ingredient,
+    get_recipe_categories,
 )
 from data.purchasing import (
     # Purchases
@@ -954,6 +955,16 @@ async def get_unlinked_recipe_ingredients():
     return {
         "unlinked": unlinked,
         "count": len(unlinked),
+    }
+
+
+@app.get("/api/recipes/categories")
+async def list_recipe_categories():
+    """Get all recipe categories"""
+    categories = get_recipe_categories()
+    return {
+        "categories": categories,
+        "count": len(categories),
     }
 
 

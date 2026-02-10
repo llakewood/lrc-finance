@@ -41,6 +41,7 @@ import {
 } from '@/hooks/use-square'
 import {
   useRecipes,
+  useRecipeCategories,
   useUnlinkedIngredients,
   useUpdateRecipe,
   useAddRecipeIngredient,
@@ -90,6 +91,8 @@ function DashboardContent() {
   const [showLinkingModal, setShowLinkingModal] = useState(false)
   const [isEditingRecipe, setIsEditingRecipe] = useState(false)
   const [recipeEditForm, setRecipeEditForm] = useState({
+    name: '',
+    category: '',
     portions: 0,
     proposed_sale_price: 0,
     prep_time_minutes: 0,
@@ -102,6 +105,8 @@ function DashboardContent() {
     unit_cost: 0,
   })
   const [recipeFilter, setRecipeFilter] = useState('')
+  const [recipeSortColumn, setRecipeSortColumn] = useState<'name' | 'category' | 'margin'>('name')
+  const [recipeSortDirection, setRecipeSortDirection] = useState<'asc' | 'desc'>('asc')
   const [ingredientFilter, setIngredientFilter] = useState('')
   const [editingIngredientId, setEditingIngredientId] = useState<string | null>(null)
   const [ingredientEditForm, setIngredientEditForm] = useState({
@@ -163,6 +168,7 @@ function DashboardContent() {
 
   // Recipe data queries
   const { data: recipes, isLoading: recipesLoading } = useRecipes('profit')
+  const { data: recipeCategories } = useRecipeCategories()
   const { data: unlinkedIngredients } = useUnlinkedIngredients()
   const updateRecipe = useUpdateRecipe()
   const addRecipeIngredientMutation = useAddRecipeIngredient()
@@ -280,13 +286,42 @@ function DashboardContent() {
     return recipes.find((r) => r.name === selectedRecipe) ?? null
   }, [selectedRecipe, recipes])
 
-  // Filter recipes by name
+  // Filter and sort recipes
   const filteredRecipes = useMemo(() => {
     if (!recipes) return []
-    if (!recipeFilter.trim()) return recipes
-    const searchTerm = recipeFilter.toLowerCase().trim()
-    return recipes.filter((r) => r.name.toLowerCase().includes(searchTerm))
-  }, [recipes, recipeFilter])
+    let filtered = recipes
+    if (recipeFilter.trim()) {
+      const searchTerm = recipeFilter.toLowerCase().trim()
+      filtered = recipes.filter((r) => r.name.toLowerCase().includes(searchTerm))
+    }
+    // Sort by selected column
+    const sorted = [...filtered].sort((a, b) => {
+      let comparison = 0
+      switch (recipeSortColumn) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name)
+          break
+        case 'category':
+          comparison = (a.category ?? '').localeCompare(b.category ?? '')
+          break
+        case 'margin':
+          comparison = (a.margin_percent ?? 0) - (b.margin_percent ?? 0)
+          break
+      }
+      return recipeSortDirection === 'asc' ? comparison : -comparison
+    })
+    return sorted
+  }, [recipes, recipeFilter, recipeSortColumn, recipeSortDirection])
+
+  // Handle recipe column sort
+  const handleRecipeSort = (column: 'name' | 'category' | 'margin') => {
+    if (recipeSortColumn === column) {
+      setRecipeSortDirection(recipeSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setRecipeSortColumn(column)
+      setRecipeSortDirection('asc')
+    }
+  }
 
   // Filter ingredients by name or supplier
   const filteredIngredients = useMemo(() => {
@@ -334,6 +369,8 @@ function DashboardContent() {
   const startRecipeEdit = () => {
     if (!selectedRecipeData) return
     setRecipeEditForm({
+      name: selectedRecipeData.name || '',
+      category: selectedRecipeData.category || '',
       portions: selectedRecipeData.portions || 1,
       proposed_sale_price: selectedRecipeData.price || 0,
       prep_time_minutes: selectedRecipeData.prep_time_minutes || 0,
@@ -354,6 +391,8 @@ function DashboardContent() {
       {
         id: selectedRecipeData.id,
         data: {
+          name: recipeEditForm.name || undefined,
+          category: recipeEditForm.category || undefined,
           portions: recipeEditForm.portions,
           proposed_sale_price: recipeEditForm.proposed_sale_price,
           prep_time_minutes: recipeEditForm.prep_time_minutes || undefined,
@@ -363,6 +402,10 @@ function DashboardContent() {
       {
         onSuccess: () => {
           setIsEditingRecipe(false)
+          // Update selected recipe if name changed
+          if (recipeEditForm.name && recipeEditForm.name !== selectedRecipeData.name) {
+            setSelectedRecipe(recipeEditForm.name)
+          }
         },
       }
     )
@@ -1090,10 +1133,24 @@ function DashboardContent() {
                         <table className="w-full">
                           <thead className="sticky top-0 bg-surface-card">
                             <tr className="border-b border-border">
-                              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Recipe</th>
-                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Batch Cost</th>
-                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Revenue</th>
-                              <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4">Margin</th>
+                              <th
+                                className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4 cursor-pointer hover:text-text select-none"
+                                onClick={() => handleRecipeSort('name')}
+                              >
+                                Recipe {recipeSortColumn === 'name' && (recipeSortDirection === 'asc' ? '↑' : '↓')}
+                              </th>
+                              <th
+                                className="text-left text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4 cursor-pointer hover:text-text select-none"
+                                onClick={() => handleRecipeSort('category')}
+                              >
+                                Category {recipeSortColumn === 'category' && (recipeSortDirection === 'asc' ? '↑' : '↓')}
+                              </th>
+                              <th
+                                className="text-right text-xs font-semibold text-text-muted uppercase tracking-wide py-3 px-4 cursor-pointer hover:text-text select-none"
+                                onClick={() => handleRecipeSort('margin')}
+                              >
+                                Margin {recipeSortColumn === 'margin' && (recipeSortDirection === 'asc' ? '↑' : '↓')}
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1109,8 +1166,7 @@ function DashboardContent() {
                                 )}
                               >
                                 <td className="py-3 px-4 text-sm">{recipe.name}</td>
-                                <td className="py-3 px-4 text-sm text-right">{formatCurrency(recipe.total_cost, { decimals: 2 })}</td>
-                                <td className="py-3 px-4 text-sm text-right">{formatCurrency(recipe.revenue_per_batch, { decimals: 2 })}</td>
+                                <td className="py-3 px-4 text-sm text-text-muted">{recipe.category || '-'}</td>
                                 <td className={cn(
                                   'py-3 px-4 text-sm text-right font-medium',
                                   recipe.margin_percent > 0 ? 'text-status-success' : 'text-status-error'
@@ -1131,11 +1187,31 @@ function DashboardContent() {
                           {isEditingRecipe ? (
                             /* EDIT MODE */
                             <>
-                              <div>
-                                <h3 className="text-lg font-semibold">{selectedRecipeData.name}</h3>
-                                {selectedRecipeData.concept && (
-                                  <p className="text-sm text-text-muted">{selectedRecipeData.concept}</p>
-                                )}
+                              {/* Editable Name & Category */}
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs text-text-muted mb-1">Recipe Name</label>
+                                  <Input
+                                    value={recipeEditForm.name ?? selectedRecipeData.name}
+                                    onChange={(e) => setRecipeEditForm({ ...recipeEditForm, name: e.target.value })}
+                                    inputSize="sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-text-muted mb-1">Category</label>
+                                  <select
+                                    value={recipeEditForm.category ?? selectedRecipeData.category ?? ''}
+                                    onChange={(e) => setRecipeEditForm({ ...recipeEditForm, category: e.target.value })}
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface-bg focus:outline-none focus:ring-2 focus:ring-primary"
+                                  >
+                                    <option value="">Select category...</option>
+                                    {recipeCategories?.map((cat) => (
+                                      <option key={cat.id} value={cat.name}>
+                                        {cat.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
                               </div>
 
                               {/* Batch Economics Preview */}
@@ -1240,8 +1316,8 @@ function DashboardContent() {
                               <div className="flex justify-between items-start">
                                 <div>
                                   <h3 className="text-lg font-semibold">{selectedRecipeData.name}</h3>
-                                  {selectedRecipeData.concept && (
-                                    <p className="text-sm text-text-muted">{selectedRecipeData.concept}</p>
+                                  {selectedRecipeData.category && (
+                                    <p className="text-sm text-text-muted">{selectedRecipeData.category}</p>
                                   )}
                                 </div>
                                 <Button

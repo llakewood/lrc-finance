@@ -13,6 +13,16 @@ import hashlib
 DATA_DIR = Path(__file__).parent
 INGREDIENTS_FILE = DATA_DIR / "ingredients.json"
 RECIPES_FILE = DATA_DIR / "recipes.json"
+RECIPE_CATEGORIES_FILE = DATA_DIR / "recipe-categories.json"
+
+
+@dataclass
+class RecipeCategory:
+    """A category for organizing recipes"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = None
 
 
 def generate_ingredient_id(name: str, category: str) -> str:
@@ -103,7 +113,7 @@ class Recipe:
     """A recipe with costing information"""
     name: str
     id: str = ""
-    concept: Optional[str] = None
+    category: Optional[str] = None
     submitted_by: Optional[str] = None
     portions: int = 1
     prep_time_minutes: Optional[float] = None
@@ -243,7 +253,7 @@ def _load_recipes_from_json() -> list[Recipe]:
         recipe = Recipe(
             id=item.get('id', ''),
             name=item.get('name', ''),
-            concept=item.get('concept'),
+            category=item.get('category') or item.get('concept'),  # Support legacy 'concept' field
             submitted_by=item.get('submitted_by'),
             portions=item.get('portions', 1),
             prep_time_minutes=item.get('prep_time_minutes'),
@@ -298,7 +308,7 @@ def _save_recipes():
         recipe_data = {
             'id': recipe.id,
             'name': recipe.name,
-            'concept': recipe.concept,
+            'category': recipe.category,
             'submitted_by': recipe.submitted_by,
             'portions': recipe.portions,
             'prep_time_minutes': recipe.prep_time_minutes,
@@ -491,7 +501,7 @@ def update_recipe(recipe_id: str, updates: dict) -> Optional[dict]:
 
     # Allowed fields to edit
     editable_fields = {
-        "name", "concept", "portions", "prep_time_minutes",
+        "name", "category", "portions", "prep_time_minutes",
         "proposed_sale_price", "cost_in_wages"
     }
 
@@ -763,7 +773,7 @@ def recipe_to_dict(recipe: Recipe) -> dict:
     return {
         "id": recipe.id,
         "name": recipe.name,
-        "concept": recipe.concept,
+        "category": recipe.category,
         "submitted_by": recipe.submitted_by,
         "portions": recipe.portions,
         "prep_time_minutes": recipe.prep_time_minutes,
@@ -788,6 +798,55 @@ def recipe_to_dict(recipe: Recipe) -> dict:
             for ing in recipe.ingredients
         ],
     }
+
+
+# =============================================================================
+# RECIPE CATEGORIES
+# =============================================================================
+
+_recipe_categories: list[RecipeCategory] = []
+_recipe_categories_loaded = False
+
+
+def _load_recipe_categories():
+    """Load recipe categories from JSON file"""
+    global _recipe_categories, _recipe_categories_loaded
+
+    if not RECIPE_CATEGORIES_FILE.exists():
+        _recipe_categories = []
+        _recipe_categories_loaded = True
+        return
+
+    with open(RECIPE_CATEGORIES_FILE, 'r') as f:
+        data = json.load(f)
+
+    _recipe_categories = [
+        RecipeCategory(
+            id=item['id'],
+            name=item['name'],
+            description=item.get('description'),
+            color=item.get('color'),
+        )
+        for item in data
+    ]
+    _recipe_categories_loaded = True
+
+
+def get_recipe_categories() -> list[dict]:
+    """Get all recipe categories"""
+    global _recipe_categories_loaded
+    if not _recipe_categories_loaded:
+        _load_recipe_categories()
+
+    return [
+        {
+            "id": cat.id,
+            "name": cat.name,
+            "description": cat.description,
+            "color": cat.color,
+        }
+        for cat in _recipe_categories
+    ]
 
 
 if __name__ == "__main__":

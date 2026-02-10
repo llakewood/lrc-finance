@@ -13,6 +13,7 @@ import {
   addRecipeIngredient,
   updateRecipeIngredient,
   deleteRecipeIngredient,
+  getRecipeCategories,
   type RecipeUpdateData,
   type RecipeIngredientData,
 } from '../lib/api'
@@ -24,6 +25,7 @@ export const recipeKeys = {
   details: () => [...recipeKeys.all, 'detail'] as const,
   detail: (name: string) => [...recipeKeys.details(), name] as const,
   unlinked: () => [...recipeKeys.all, 'unlinked'] as const,
+  categories: () => [...recipeKeys.all, 'categories'] as const,
 }
 
 export function useRecipes(sortBy = 'profit') {
@@ -157,5 +159,12 @@ export function useDeleteRecipeIngredient() {
       queryClient.invalidateQueries({ queryKey: recipeKeys.details() })
       queryClient.invalidateQueries({ queryKey: recipeKeys.unlinked() })
     },
+  })
+}
+
+export function useRecipeCategories() {
+  return useQuery({
+    queryKey: recipeKeys.categories(),
+    queryFn: getRecipeCategories,
   })
 }
