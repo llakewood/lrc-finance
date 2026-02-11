@@ -58,6 +58,7 @@ import {
 import {
   usePurchases,
   useCreatePurchase,
+  useCreateBatchPurchase,
   useDeletePurchase,
 } from '@/hooks/use-purchases'
 import {
@@ -149,6 +150,22 @@ function DashboardContent() {
     typical_lead_days: 0,
   })
 
+  // Multi-item receipt entry state
+  const [showReceiptEntry, setShowReceiptEntry] = useState(false)
+  const [receiptHeader, setReceiptHeader] = useState({
+    date: new Date().toISOString().split('T')[0],
+    supplier_id: '' as string | null,
+    invoice_number: '',
+  })
+  const [receiptItems, setReceiptItems] = useState<Array<{
+    ingredient_id: string
+    quantity: number
+    unit: string
+    total_cost: number
+    has_tax: boolean
+    notes: string
+  }>>([{ ingredient_id: '', quantity: 0, unit: '', total_cost: 0, has_tax: false, notes: '' }])
+
   // Financial data queries
   const { data: fiscalYears, isLoading: yearsLoading } = useFiscalYears()
   const { data: summary, isLoading: summaryLoading, error: summaryError } = useSummary(selectedYear)
@@ -188,6 +205,7 @@ function DashboardContent() {
   const { data: inventory, isLoading: inventoryLoading } = useInventory()
   const { data: priceAlerts } = usePriceAlerts()
   const createPurchase = useCreatePurchase()
+  const createBatchPurchase = useCreateBatchPurchase()
   const deletePurchaseMutation = useDeletePurchase()
   const createSupplier = useCreateSupplier()
   const updateSupplierMutation = useUpdateSupplier()
@@ -632,6 +650,72 @@ function DashboardContent() {
         window.alert(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`)
       },
     })
+  }
+
+  // Multi-item receipt handlers
+  const addReceiptItem = () => {
+    setReceiptItems([...receiptItems, { ingredient_id: '', quantity: 0, unit: '', total_cost: 0, has_tax: false, notes: '' }])
+  }
+
+  const updateReceiptItem = (index: number, field: string, value: string | number | boolean) => {
+    const updated = [...receiptItems]
+    updated[index] = { ...updated[index], [field]: value }
+    setReceiptItems(updated)
+  }
+
+  const removeReceiptItem = (index: number) => {
+    if (receiptItems.length === 1) return
+    setReceiptItems(receiptItems.filter((_, i) => i !== index))
+  }
+
+  const getReceiptTotal = () => {
+    return receiptItems.reduce((sum, item) => sum + (item.total_cost || 0), 0)
+  }
+
+  const resetReceiptForm = () => {
+    setReceiptHeader({
+      date: new Date().toISOString().split('T')[0],
+      supplier_id: null,
+      invoice_number: '',
+    })
+    setReceiptItems([{ ingredient_id: '', quantity: 0, unit: '', total_cost: 0, has_tax: false, notes: '' }])
+  }
+
+  const handleSaveReceipt = () => {
+    // Validate - at least one item with required fields
+    const validItems = receiptItems.filter(item =>
+      item.ingredient_id && item.quantity > 0 && item.total_cost >= 0
+    )
+    if (validItems.length === 0) {
+      window.alert('Please add at least one item with ingredient, quantity, and cost')
+      return
+    }
+
+    createBatchPurchase.mutate(
+      {
+        date: receiptHeader.date,
+        supplier_id: receiptHeader.supplier_id,
+        invoice_number: receiptHeader.invoice_number || null,
+        items: validItems.map(item => ({
+          ingredient_id: item.ingredient_id,
+          quantity: item.quantity,
+          unit: item.unit || 'units',
+          total_cost: item.total_cost,
+          has_tax: item.has_tax,
+          notes: item.notes || undefined,
+        })),
+      },
+      {
+        onSuccess: (purchases) => {
+          setShowReceiptEntry(false)
+          resetReceiptForm()
+          window.alert(`Successfully added ${purchases.length} purchase${purchases.length > 1 ? 's' : ''}!`)
+        },
+        onError: (error) => {
+          window.alert(`Failed to save receipt: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        },
+      }
+    )
   }
 
   // Handle add supplier
@@ -1668,16 +1752,185 @@ function DashboardContent() {
                   title="Recent Purchases"
                   variant="card"
                   actions={
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => setShowAddPurchase(!showAddPurchase)}
-                    >
-                      {showAddPurchase ? 'Cancel' : '+ Add Purchase'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setShowReceiptEntry(!showReceiptEntry)
+                          if (showAddPurchase) setShowAddPurchase(false)
+                        }}
+                      >
+                        {showReceiptEntry ? 'Cancel Receipt' : '+ Add Receipt'}
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => {
+                          setShowAddPurchase(!showAddPurchase)
+                          if (showReceiptEntry) setShowReceiptEntry(false)
+                        }}
+                      >
+                        {showAddPurchase ? 'Cancel' : '+ Quick Add'}
+                      </Button>
+                    </div>
                   }
                 >
-                  {/* Add Purchase Form */}
+                  {/* Multi-Item Receipt Entry Form */}
+                  {showReceiptEntry && (
+                    <div className="bg-surface-bg p-4 rounded-lg mb-4 space-y-4 border-2 border-brand-primary/30">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-brand-primary">Enter Receipt</h4>
+                        <span className="text-sm text-text-muted">
+                          Total: <span className="font-semibold text-text">{formatCurrency(getReceiptTotal(), { decimals: 2 })}</span>
+                        </span>
+                      </div>
+
+                      {/* Receipt Header */}
+                      <div className="grid grid-cols-3 gap-3 pb-3 border-b border-border">
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Date *</label>
+                          <Input
+                            type="date"
+                            value={receiptHeader.date}
+                            onChange={(e) => setReceiptHeader({ ...receiptHeader, date: e.target.value })}
+                            inputSize="sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Supplier</label>
+                          <select
+                            className="w-full h-8 px-2 text-sm border border-border rounded-md bg-surface-card"
+                            value={receiptHeader.supplier_id || ''}
+                            onChange={(e) => setReceiptHeader({ ...receiptHeader, supplier_id: e.target.value || null })}
+                          >
+                            <option value="">-- Select Supplier --</option>
+                            {suppliers?.map((s) => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Invoice/Receipt #</label>
+                          <Input
+                            value={receiptHeader.invoice_number}
+                            onChange={(e) => setReceiptHeader({ ...receiptHeader, invoice_number: e.target.value })}
+                            inputSize="sm"
+                            placeholder="Optional"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Receipt Items */}
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-12 gap-2 text-xs text-text-muted font-medium px-1">
+                          <div className="col-span-4">Ingredient *</div>
+                          <div className="col-span-2">Qty *</div>
+                          <div className="col-span-1">Unit</div>
+                          <div className="col-span-2">Cost *</div>
+                          <div className="col-span-1 text-center">HST</div>
+                          <div className="col-span-2"></div>
+                        </div>
+                        {receiptItems.map((item, index) => (
+                          <div key={index} className="grid grid-cols-12 gap-2 items-center bg-surface-card p-2 rounded border border-border">
+                            <div className="col-span-4">
+                              <select
+                                className="w-full h-8 px-2 text-sm border border-border rounded-md bg-surface-card"
+                                value={item.ingredient_id}
+                                onChange={(e) => updateReceiptItem(index, 'ingredient_id', e.target.value)}
+                              >
+                                <option value="">-- Select --</option>
+                                {ingredients?.map((ing) => (
+                                  <option key={ing.id} value={ing.id}>{ing.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-span-2">
+                              <Input
+                                type="number"
+                                value={item.quantity || ''}
+                                onChange={(e) => updateReceiptItem(index, 'quantity', parseFloat(e.target.value) || 0)}
+                                inputSize="sm"
+                                step="0.01"
+                              />
+                            </div>
+                            <div className="col-span-1">
+                              <Input
+                                value={item.unit}
+                                onChange={(e) => updateReceiptItem(index, 'unit', e.target.value)}
+                                inputSize="sm"
+                                placeholder="lbs"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <Input
+                                type="number"
+                                value={item.total_cost || ''}
+                                onChange={(e) => updateReceiptItem(index, 'total_cost', parseFloat(e.target.value) || 0)}
+                                inputSize="sm"
+                                step="0.01"
+                                placeholder="$"
+                              />
+                            </div>
+                            <div className="col-span-1 flex justify-center">
+                              <input
+                                type="checkbox"
+                                checked={item.has_tax}
+                                onChange={(e) => updateReceiptItem(index, 'has_tax', e.target.checked)}
+                                className="w-4 h-4 rounded border-border"
+                                title="HST included"
+                              />
+                            </div>
+                            <div className="col-span-2 flex justify-end">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeReceiptItem(index)}
+                                disabled={receiptItems.length === 1}
+                                className="text-status-error hover:bg-status-error/10"
+                              >
+                                ×
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={addReceiptItem}
+                          className="w-full border border-dashed border-border hover:border-brand-primary"
+                        >
+                          + Add Another Item
+                        </Button>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 pt-2 border-t border-border">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={handleSaveReceipt}
+                          disabled={createBatchPurchase.isPending || receiptItems.every(item => !item.ingredient_id)}
+                        >
+                          {createBatchPurchase.isPending ? 'Saving...' : `Save Receipt (${receiptItems.filter(i => i.ingredient_id).length} items)`}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowReceiptEntry(false)
+                            resetReceiptForm()
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Add Purchase Form */}
                   {showAddPurchase && (
                     <div className="bg-surface-bg p-4 rounded-lg mb-4 space-y-3">
                       <div className="grid grid-cols-2 gap-3">

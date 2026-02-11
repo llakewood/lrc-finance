@@ -535,6 +535,58 @@ def delete_purchase(purchase_id: str) -> bool:
     return True
 
 
+def create_batch_purchases(items: list[dict], common_data: dict) -> list[Purchase]:
+    """
+    Create multiple purchases from a single receipt.
+
+    Args:
+        items: List of purchase items, each containing:
+            - ingredient_id: str
+            - quantity: float
+            - unit: str
+            - total_cost: float
+            - has_tax: bool (optional, for HST tracking)
+            - notes: str (optional)
+        common_data: Shared data for all purchases:
+            - date: str (YYYY-MM-DD)
+            - supplier_id: str (optional)
+            - invoice_number: str (optional)
+
+    Returns:
+        List of created Purchase objects
+    """
+    _ensure_loaded()
+
+    created_purchases = []
+
+    for item in items:
+        # Build purchase data combining item and common data
+        purchase_data = {
+            "ingredient_id": item["ingredient_id"],
+            "quantity": item["quantity"],
+            "unit": item.get("unit", "units"),
+            "total_cost": item["total_cost"],
+            "date": common_data.get("date", date.today().isoformat()),
+            "supplier_id": common_data.get("supplier_id"),
+            "invoice_number": common_data.get("invoice_number"),
+            "source": "batch",
+        }
+
+        # Add notes including tax info if applicable
+        notes_parts = []
+        if item.get("notes"):
+            notes_parts.append(item["notes"])
+        if item.get("has_tax"):
+            notes_parts.append("HST included")
+        if notes_parts:
+            purchase_data["notes"] = " | ".join(notes_parts)
+
+        purchase = create_purchase(purchase_data)
+        created_purchases.append(purchase)
+
+    return created_purchases
+
+
 # =============================================================================
 # PRICE HISTORY
 # =============================================================================

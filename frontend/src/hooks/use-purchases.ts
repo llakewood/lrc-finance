@@ -7,10 +7,12 @@ import {
   getPurchases,
   getPurchase,
   createPurchase,
+  createBatchPurchase,
   updatePurchase,
   deletePurchase,
   type PurchaseCreateData,
   type PurchaseUpdateData,
+  type BatchPurchaseData,
 } from '../lib/api'
 import { inventoryKeys } from './use-inventory'
 
@@ -76,6 +78,20 @@ export function useDeletePurchase() {
     mutationFn: (id: string) => deletePurchase(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: purchaseKeys.lists() })
+    },
+  })
+}
+
+export function useCreateBatchPurchase() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: BatchPurchaseData) => createBatchPurchase(data),
+    onSuccess: () => {
+      // Invalidate purchase lists
+      queryClient.invalidateQueries({ queryKey: purchaseKeys.lists() })
+      // Also invalidate inventory since it may have been updated
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.all })
     },
   })
 }

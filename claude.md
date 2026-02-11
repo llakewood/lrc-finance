@@ -30,6 +30,15 @@ COMPLETED:
 - [x] Component library foundation (Phase 1) - React + TypeScript + Tailwind + Storybook + CVA
 - [x] Component library complete (Phases 1-5) - 29 components, TanStack Query hooks, Dashboard page
 - [x] React frontend feature parity with HTML template (3 tabs: Financial Overview, Live POS Data, Recipe Costing)
+- [x] Recipe category system - renamed concept→category, created data/recipe-categories.json with 8 categories
+- [x] Recipe table sorting - all columns sortable ASC/DESC, editable name & category
+- [x] Inventory & Purchasing system (Phases 1-3):
+  - Purchase tracking with supplier & invoice management
+  - Supplier CRUD with contact info & lead times
+  - Inventory levels with min/max stock thresholds
+  - Price history tracking with automatic change detection
+  - Low-stock alerts and price change alerts
+  - Master ingredients consolidated into Inventory tab
 
 FRONTEND (frontend/):
 
@@ -84,14 +93,18 @@ API Integration (lib/):
 Hooks (hooks/):
 - use-financial.ts - useFiscalYears, useSummary, useExpenseBreakdown, useBenchmarks, useDebtProgress, useMetrics, useCashFlowHealth
 - use-square.ts - useSquareStatus, useSquareSales, useSquareProductMix, useSquareTeam, useRefreshSquareData
-- use-recipes.ts - useRecipes, useRecipe, useUpdateRecipe, useUnlinkedIngredients, useLinkIngredient
+- use-recipes.ts - useRecipes, useRecipe, useUpdateRecipe, useUnlinkedIngredients, useLinkIngredient, useRecipeCategories
 - use-ingredients.ts - useIngredients, useUpdateIngredient, useCreateIngredient, useDeleteIngredient, useIngredientCategories
+- use-purchases.ts - usePurchases, useCreatePurchase, useUpdatePurchase, useDeletePurchase
+- use-suppliers.ts - useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier
+- use-inventory.ts - useInventory, useUpdateInventory, useLowStockItems, usePriceHistory, usePriceAlerts
 
 Pages (pages/):
-- dashboard.tsx - Main dashboard with 3 tabs:
+- dashboard.tsx - Main dashboard with 4 tabs:
   - Financial Overview: Key metrics, profitability, benchmarks, debt progress, expense breakdown, cash flow health
   - Live POS Data: Square sales metrics, top sellers, team grid
-  - Recipe Costing: Recipe summary cards, profitability table, recipe detail panel, master ingredients table
+  - Recipe Costing: Recipe summary cards, sortable profitability table, recipe detail panel with editable name/category
+  - Inventory: Master ingredients table, purchase history, supplier management, stock levels, price alerts
 
 To run frontend: `cd frontend && npm run dev` → http://localhost:5173
 To run Storybook: `cd frontend && npm run storybook` → http://localhost:6006
@@ -116,5 +129,8 @@ Work through the following areas to gain a broader understanding of all areas of
 - [x] Staffing analysis - integrated via Square API
 - [x] Product mix deep-dive - integrated via Square API
 - [x] Recipe costing - parse & edit recipes, calculate batch profitability
+- [x] Inventory & Purchasing (Phases 1-3) - purchase tracking, suppliers, stock levels, price alerts
+- [ ] Multi-Item Receipt Entry (Phase 4) - enter full receipts with multiple items, HST per-item tracking
+- [ ] OCR Receipt Scanning (Phase 5) - Claude Vision API for receipt photo extraction
 - [ ] Scenario planning ("What if...") - build calculator for pricing/volume changes
 - [ ] Monthly tracking system - lightweight system to input monthly numbers

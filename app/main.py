@@ -48,6 +48,7 @@ from data.purchasing import (
     get_all_purchases,
     get_purchase,
     create_purchase,
+    create_batch_purchases,
     update_purchase,
     delete_purchase,
     get_purchases_by_ingredient,
@@ -1333,6 +1334,78 @@ async def remove_purchase(purchase_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Purchase not found")
     return {"status": "ok", "deleted": purchase_id}
+
+
+@app.post("/api/purchases/batch")
+async def add_batch_purchases(request: Request):
+    """
+    Create multiple purchases from a single receipt.
+
+    Body format:
+    {
+        "date": "2026-02-10",
+        "supplier_id": "optional-supplier-id",
+        "invoice_number": "optional-invoice-number",
+        "items": [
+            {
+                "ingredient_id": "abc123",
+                "quantity": 5,
+                "unit": "lbs",
+                "total_cost": 25.00,
+                "has_tax": true,
+                "notes": "optional notes"
+            },
+            ...
+        ]
+    }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    items = body.get("items", [])
+    if not items:
+        raise HTTPException(status_code=400, detail="items array is required")
+
+    # Validate each item
+    for i, item in enumerate(items):
+        if not item.get("ingredient_id"):
+            raise HTTPException(status_code=400, detail=f"Item {i+1}: ingredient_id is required")
+        if not item.get("quantity"):
+            raise HTTPException(status_code=400, detail=f"Item {i+1}: quantity is required")
+        if not item.get("total_cost") and item.get("total_cost") != 0:
+            raise HTTPException(status_code=400, detail=f"Item {i+1}: total_cost is required")
+
+    common_data = {
+        "date": body.get("date"),
+        "supplier_id": body.get("supplier_id"),
+        "invoice_number": body.get("invoice_number"),
+    }
+
+    purchases = create_batch_purchases(items, common_data)
+
+    return {
+        "status": "ok",
+        "count": len(purchases),
+        "purchases": [
+            {
+                "id": p.id,
+                "ingredient_id": p.ingredient_id,
+                "date": p.date,
+                "quantity": p.quantity,
+                "unit": p.unit,
+                "total_cost": p.total_cost,
+                "unit_price": p.unit_price,
+                "supplier_id": p.supplier_id,
+                "invoice_number": p.invoice_number,
+                "notes": p.notes,
+                "source": p.source,
+                "created_at": p.created_at,
+            }
+            for p in purchases
+        ],
+    }
 
 
 # =============================================================================
