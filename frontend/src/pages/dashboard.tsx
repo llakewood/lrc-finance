@@ -71,6 +71,10 @@ import {
   useInventory,
   usePriceAlerts,
 } from '@/hooks/use-inventory'
+import {
+  useReceiptScanStatus,
+  useScanReceipt,
+} from '@/hooks/use-receipt-scanner'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -210,6 +214,10 @@ function DashboardContent() {
   const createSupplier = useCreateSupplier()
   const updateSupplierMutation = useUpdateSupplier()
   const deleteSupplierMutation = useDeleteSupplier()
+
+  // Receipt scanning
+  const { data: scanStatus } = useReceiptScanStatus()
+  const scanReceipt = useScanReceipt()
 
   const isLive = squareStatus?.connected ?? false
   const isLoading = summaryLoading || expensesLoading || benchmarksLoading || debtLoading || metricsLoading || cashFlowLoading
@@ -716,6 +724,67 @@ function DashboardContent() {
         },
       }
     )
+  }
+
+  // Handle receipt scanning
+  const handleScanReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Reset input so same file can be selected again
+    e.target.value = ''
+
+    scanReceipt.mutate(file, {
+      onSuccess: (scannedData) => {
+        // Populate receipt header
+        setReceiptHeader({
+          date: scannedData.date || new Date().toISOString().split('T')[0],
+          supplier_id: null, // User needs to select from dropdown
+          invoice_number: scannedData.invoice_number || '',
+        })
+
+        // Find matching ingredients by name (fuzzy match)
+        const findIngredientId = (itemName: string): string => {
+          if (!ingredients) return ''
+          const nameLower = itemName.toLowerCase()
+          // Try exact match first
+          const exact = ingredients.find(ing => ing.name.toLowerCase() === nameLower)
+          if (exact) return exact.id
+          // Try partial match
+          const partial = ingredients.find(ing =>
+            nameLower.includes(ing.name.toLowerCase()) ||
+            ing.name.toLowerCase().includes(nameLower)
+          )
+          return partial?.id || ''
+        }
+
+        // Populate receipt items
+        const scannedItems = scannedData.items.map(item => ({
+          ingredient_id: findIngredientId(item.name),
+          quantity: item.quantity,
+          unit: item.unit,
+          total_cost: item.total_cost,
+          has_tax: item.has_tax,
+          notes: item.name, // Store original name in notes for reference
+        }))
+
+        setReceiptItems(scannedItems.length > 0 ? scannedItems : [
+          { ingredient_id: '', quantity: 0, unit: '', total_cost: 0, has_tax: false, notes: '' }
+        ])
+
+        // Show receipt entry form for review
+        setShowReceiptEntry(true)
+        setShowAddPurchase(false)
+
+        // Show supplier name hint if detected
+        if (scannedData.supplier_name) {
+          window.alert(`Receipt from "${scannedData.supplier_name}" scanned successfully!\n\nPlease select the supplier from the dropdown and review the items.`)
+        }
+      },
+      onError: (error) => {
+        window.alert(`Failed to scan receipt: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      },
+    })
   }
 
   // Handle add supplier
@@ -1753,6 +1822,24 @@ function DashboardContent() {
                   variant="card"
                   actions={
                     <div className="flex gap-2">
+                      {/* Hidden file input for receipt scanning */}
+                      <input
+                        type="file"
+                        id="receipt-scan-input"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        className="hidden"
+                        onChange={handleScanReceipt}
+                      />
+                      {scanStatus?.available && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById('receipt-scan-input')?.click()}
+                          disabled={scanReceipt.isPending}
+                        >
+                          {scanReceipt.isPending ? 'Scanning...' : '📷 Scan Receipt'}
+                        </Button>
+                      )}
                       <Button
                         variant="secondary"
                         size="sm"

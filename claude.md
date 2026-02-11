@@ -130,7 +130,7 @@ Work through the following areas to gain a broader understanding of all areas of
 - [x] Product mix deep-dive - integrated via Square API
 - [x] Recipe costing - parse & edit recipes, calculate batch profitability
 - [x] Inventory & Purchasing (Phases 1-3) - purchase tracking, suppliers, stock levels, price alerts
-- [ ] Multi-Item Receipt Entry (Phase 4) - enter full receipts with multiple items, HST per-item tracking
-- [ ] OCR Receipt Scanning (Phase 5) - Claude Vision API for receipt photo extraction
+- [x] Multi-Item Receipt Entry (Phase 4) - enter full receipts with multiple items, HST per-item tracking
+- [x] OCR Receipt Scanning (Phase 5) - Claude Vision API for receipt photo extraction
 - [ ] Scenario planning ("What if...") - build calculator for pricing/volume changes
 - [ ] Monthly tracking system - lightweight system to input monthly numbers

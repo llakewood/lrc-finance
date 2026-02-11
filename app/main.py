@@ -67,6 +67,11 @@ from data.purchasing import (
     get_price_history,
     get_recent_price_changes,
 )
+from data.receipt_scanner import (
+    scan_receipt_from_bytes,
+    scanned_receipt_to_dict,
+    ANTHROPIC_AVAILABLE,
+)
 
 
 # =============================================================================
@@ -1664,6 +1669,83 @@ async def get_price_alerts(
         ],
         "count": len(significant_changes),
     }
+
+
+# =============================================================================
+# RECEIPT SCANNING API ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/receipts/status")
+async def get_receipt_scanning_status():
+    """Check if receipt scanning is available (Anthropic API configured)"""
+    import os
+    api_key_set = bool(os.getenv("ANTHROPIC_API_KEY"))
+    return {
+        "available": ANTHROPIC_AVAILABLE and api_key_set,
+        "anthropic_installed": ANTHROPIC_AVAILABLE,
+        "api_key_configured": api_key_set,
+    }
+
+
+@app.post("/api/receipts/scan")
+async def scan_receipt(request: Request):
+    """
+    Scan a receipt image using Claude Vision API.
+
+    Accepts multipart/form-data with an 'image' file field.
+    Returns extracted purchase data that can be reviewed before saving.
+    """
+    import os
+
+    if not ANTHROPIC_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Receipt scanning unavailable: anthropic package not installed"
+        )
+
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="Receipt scanning unavailable: ANTHROPIC_API_KEY not configured"
+        )
+
+    # Parse multipart form data
+    from fastapi import UploadFile, File
+    form = await request.form()
+    image_file = form.get("image")
+
+    if not image_file:
+        raise HTTPException(status_code=400, detail="No image file provided")
+
+    # Get the file content
+    if hasattr(image_file, "read"):
+        image_bytes = await image_file.read()
+        content_type = getattr(image_file, "content_type", "image/jpeg")
+        filename = getattr(image_file, "filename", "receipt.jpg")
+    else:
+        raise HTTPException(status_code=400, detail="Invalid file upload")
+
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    if content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid image type: {content_type}. Allowed: {', '.join(allowed_types)}"
+        )
+
+    # Scan the receipt
+    try:
+        result = scan_receipt_from_bytes(image_bytes, content_type)
+        return {
+            "status": "ok",
+            "data": scanned_receipt_to_dict(result),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to scan receipt: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
