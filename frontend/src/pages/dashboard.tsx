@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { AlertBanner } from '@/components/organisms/alert-banner'
 import { StatusDot } from '@/components/ui/status-dot'
 import { IngredientLinkingModal } from '@/components/organisms/ingredient-linking-modal'
+import { MenuVerification } from '@/components/organisms/menu-verification'
 
 import {
   useFiscalYears,
@@ -1712,6 +1713,14 @@ function DashboardContent() {
                       )}
                     </SectionLayout>
                   </GridLayout>
+
+                  {/* Menu Verification Section */}
+                  <SectionLayout
+                    title="Square Menu Verification"
+                    description="Compare recipe prices against your Square catalog to ensure consistency"
+                  >
+                    <MenuVerification />
+                  </SectionLayout>
                 </>
               )}
             </div>

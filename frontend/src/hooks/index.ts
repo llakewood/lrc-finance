@@ -39,3 +39,10 @@ export {
   useDeleteIngredient,
   useIngredientCategories,
 } from './use-ingredients'
+
+// Menu Verification hooks
+export {
+  menuVerificationKeys,
+  useMenuVerification,
+  useRefreshMenuVerification,
+} from './use-menu-verification'

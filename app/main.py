@@ -72,6 +72,10 @@ from data.receipt_scanner import (
     scanned_receipt_to_dict,
     ANTHROPIC_AVAILABLE,
 )
+from data.menu_verification import (
+    verify_menu,
+    verification_result_to_dict,
+)
 
 
 # =============================================================================
@@ -1746,6 +1750,88 @@ async def scan_receipt(request: Request):
             status_code=500,
             detail=f"Failed to scan receipt: {str(e)}"
         )
+
+
+# =============================================================================
+# MENU VERIFICATION API ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/menu-verification")
+async def verify_square_menu(
+    match_threshold: float = Query(
+        default=0.6,
+        ge=0.0,
+        le=1.0,
+        description="Minimum fuzzy match score (0-1) to consider a match",
+    ),
+    price_tolerance: float = Query(
+        default=0.01,
+        ge=0.0,
+        description="Maximum price difference to consider matching (in dollars)",
+    ),
+    refresh: bool = Query(default=False, description="Force refresh catalog from Square API"),
+):
+    """
+    Verify recipes against Square catalog.
+
+    Compares recipe prices in our system against Square menu prices.
+    Uses fuzzy matching to find corresponding items since names may differ slightly.
+    Flags any price mismatches for correction in Square POS.
+    """
+    if not is_square_configured():
+        raise HTTPException(status_code=400, detail="Square API not configured")
+
+    cache_key = "catalog_items"
+
+    # Check cache first (unless refresh requested)
+    if not refresh:
+        cached_data, cached_at = square_cache.get(cache_key)
+        if cached_data is not None:
+            result = verify_menu(cached_data, match_threshold, price_tolerance)
+            response = verification_result_to_dict(result)
+            response["_cache"] = {
+                "cached": True,
+                "stale": False,
+                "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
+                "age_seconds": int(time.time() - cached_at),
+            }
+            return response
+
+    try:
+        from app.square_client import get_square_api
+
+        api = get_square_api()
+        catalog = api.get_catalog_items()
+
+        # Cache the catalog (longer TTL since menu changes are infrequent)
+        cached_at = square_cache.set(cache_key, catalog, ttl=600)  # 10 minutes
+
+        result = verify_menu(catalog, match_threshold, price_tolerance)
+        response = verification_result_to_dict(result)
+        response["_cache"] = {
+            "cached": False,
+            "stale": False,
+            "cached_at": datetime.fromtimestamp(cached_at).isoformat(),
+            "age_seconds": 0,
+        }
+        return response
+
+    except Exception as e:
+        # Try to return stale cached data
+        stale_data, stale_at = square_cache.get_stale(cache_key)
+        if stale_data is not None:
+            result = verify_menu(stale_data, match_threshold, price_tolerance)
+            response = verification_result_to_dict(result)
+            response["_cache"] = {
+                "cached": True,
+                "stale": True,
+                "cached_at": datetime.fromtimestamp(stale_at).isoformat(),
+                "age_seconds": int(time.time() - stale_at),
+                "offline_reason": str(e),
+            }
+            return response
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
