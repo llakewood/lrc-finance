@@ -185,7 +185,7 @@ export function IngredientLinkingModal({
                           )}
                         </div>
                         {item.confidence > 0 && (
-                          <Badge variant="muted" size="sm">
+                          <Badge variant="default" size="sm">
                             {Math.round(item.confidence * 100)}% match
                           </Badge>
                         )}

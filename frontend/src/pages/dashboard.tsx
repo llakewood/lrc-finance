@@ -74,7 +74,6 @@ import {
   useDeleteSupplier,
 } from '@/hooks/use-suppliers'
 import {
-  useInventory,
   usePriceAlerts,
 } from '@/hooks/use-inventory'
 import {
@@ -210,7 +209,6 @@ function DashboardContent() {
   // Purchasing data queries
   const { data: purchases, isLoading: purchasesLoading } = usePurchases()
   const { data: suppliers, isLoading: suppliersLoading } = useSuppliers()
-  const { data: inventory, isLoading: inventoryLoading } = useInventory()
   const { data: priceAlerts } = usePriceAlerts()
   const createPurchase = useCreatePurchase()
   const createBatchPurchase = useCreateBatchPurchase()
@@ -364,25 +362,6 @@ function DashboardContent() {
         (i.supplier && i.supplier.toLowerCase().includes(searchTerm))
     )
   }, [ingredients, ingredientFilter])
-
-  // Build a map of ingredient ID to recipe names that use it
-  const ingredientRecipeMap = useMemo(() => {
-    const map: Record<string, string[]> = {}
-    if (!recipes) return map
-    recipes.forEach((recipe) => {
-      recipe.ingredients.forEach((ing) => {
-        if (ing.ingredient_id) {
-          if (!map[ing.ingredient_id]) {
-            map[ing.ingredient_id] = []
-          }
-          if (!map[ing.ingredient_id].includes(recipe.name)) {
-            map[ing.ingredient_id].push(recipe.name)
-          }
-        }
-      })
-    })
-    return map
-  }, [recipes])
 
   // Handle add ingredient form submission
   const handleAddIngredient = () => {
@@ -610,12 +589,6 @@ function DashboardContent() {
   // Get ingredient name by ID
   const getIngredientName = (id: string) => {
     return ingredients?.find((i) => i.id === id)?.name ?? 'Unknown'
-  }
-
-  // Get supplier name by ID
-  const getSupplierName = (id: string | null) => {
-    if (!id) return '-'
-    return suppliers?.find((s) => s.id === id)?.name ?? 'Unknown'
   }
 
   // Handle add purchase
@@ -1844,7 +1817,7 @@ function DashboardContent() {
                       />
                       {scanStatus?.available && (
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
                           onClick={() => document.getElementById('receipt-scan-input')?.click()}
                           disabled={scanReceipt.isPending}
@@ -2392,7 +2365,7 @@ function DashboardContent() {
                               <td className="py-3 px-4 text-sm">
                                 <div className="flex items-center gap-2">
                                   {ingredient.name}
-                                  {ingredient.is_low_stock && <Badge variant="error" size="sm">Low</Badge>}
+                                  {ingredient.is_low_stock && <Badge variant="danger" size="sm">Low</Badge>}
                                 </div>
                               </td>
                               <td className="py-3 px-4 text-sm text-text-muted">{ingredient.category || '-'}</td>
