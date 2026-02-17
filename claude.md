@@ -1,10 +1,10 @@
 CONTEXT:
 
-I’m a small business owner. I own a coffee shop in a small town. It’s a community hub, and we have been open for 4 years. Money is tight, but I passed a milestone of consolidating two startup loans into a single line of credit (cash flow improved). 
+I'm a small business owner. I own a coffee shop in a small town. It's a community hub, and we have been open for 4 years. Money is tight, but I passed a milestone of consolidating two startup loans into a single line of credit (cash flow improved).
 
-What I really want to narrow in on is how to understand my money better. I have financial and comparative statements for you. We can do a report of staffing, and I have years of receipts in folders as well. 
+What I really want to narrow in on is how to understand my money better. I have financial and comparative statements for you. We can do a report of staffing, and I have years of receipts in folders as well.
 
-We should start in planning what is the best way to work together toward better understanding of my money and the shops profitability. Whether we turn out an app, or start in docs, I’m happy to start with an MVP and build from there. 
+We should start in planning what is the best way to work together toward better understanding of my money and the shops profitability. Whether we turn out an app, or start in docs, I'm happy to start with an MVP and build from there.
 
 This project is both analytical and prescriptive.
 
@@ -39,6 +39,13 @@ COMPLETED:
   - Price history tracking with automatic change detection
   - Low-stock alerts and price change alerts
   - Master ingredients consolidated into Inventory tab
+- [x] Square Menu Verification:
+  - Fuzzy matching (SequenceMatcher) links 31 recipes to 224 Square catalog items
+  - Price comparison flags mismatches (found 9 of 18 matched items with wrong prices)
+  - Backend module: data/menu_verification.py
+  - API endpoint: GET /api/menu-verification (with caching, offline fallback)
+  - Frontend: MenuVerification component in Recipe Costing tab
+  - Hook: use-menu-verification.ts (useMenuVerification, useRefreshMenuVerification)
 
 FRONTEND (frontend/):
 
@@ -80,6 +87,7 @@ Organisms (components/organisms/):
 - TeamGrid (team member cards grid)
 - RecipeDetail (full recipe view with ingredients)
 - AlertBanner (info/warning/success/error)
+- MenuVerification (Square price verification with fuzzy matching)
 
 Templates (components/templates/):
 - DashboardLayout (main layout with header, logo, footer)
@@ -98,13 +106,15 @@ Hooks (hooks/):
 - use-purchases.ts - usePurchases, useCreatePurchase, useUpdatePurchase, useDeletePurchase
 - use-suppliers.ts - useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier
 - use-inventory.ts - useInventory, useUpdateInventory, useLowStockItems, usePriceHistory, usePriceAlerts
+- use-menu-verification.ts - useMenuVerification, useRefreshMenuVerification
+- use-receipt-scanner.ts - useReceiptScanStatus, useScanReceipt
 
 Pages (pages/):
 - dashboard.tsx - Main dashboard with 4 tabs:
   - Financial Overview: Key metrics, profitability, benchmarks, debt progress, expense breakdown, cash flow health
   - Live POS Data: Square sales metrics, top sellers, team grid
-  - Recipe Costing: Recipe summary cards, sortable profitability table, recipe detail panel with editable name/category
-  - Inventory: Master ingredients table, purchase history, supplier management, stock levels, price alerts
+  - Recipe Costing: Recipe summary cards, sortable profitability table, recipe detail panel, Square menu verification
+  - Inventory: Master ingredients table, purchase history (with OCR scan & multi-item receipt entry), supplier management, stock levels, price alerts
 
 To run frontend: `cd frontend && npm run dev` → http://localhost:5173
 To run Storybook: `cd frontend && npm run storybook` → http://localhost:6006
@@ -113,7 +123,24 @@ BACKEND:
 
 To run: `pip3 install -r requirements.txt && python3 run.py` → http://127.0.0.1:8000
 
+Key backend modules:
+- app/main.py - FastAPI app with all API endpoints
+- app/square_client.py - Square API client (locations, orders, catalog, team, labor)
+- app/config.py - Settings & environment config
+- data/recipes.py - Recipe & ingredient data access (JSON-based)
+- data/purchasing.py - Purchase, supplier, inventory management
+- data/receipt_scanner.py - Claude Vision API receipt OCR (requires anthropic package + ANTHROPIC_API_KEY)
+- data/menu_verification.py - Fuzzy matching recipes against Square catalog for price verification
+- data/financials.py - Balance sheet & income statement data
+
 REPO: https://github.com/llakewood/lrc-finance
+
+ENVIRONMENT:
+
+Required .env variables:
+- SQUARE_ACCESS_TOKEN - Square API key for POS data
+- SQUARE_LOCATION_ID - (optional) Square location, auto-detected if not set
+- ANTHROPIC_API_KEY - For receipt OCR scanning (requires funded Anthropic API account with credits)
 
 
 PRIORITIES:
@@ -131,6 +158,7 @@ Work through the following areas to gain a broader understanding of all areas of
 - [x] Recipe costing - parse & edit recipes, calculate batch profitability
 - [x] Inventory & Purchasing (Phases 1-3) - purchase tracking, suppliers, stock levels, price alerts
 - [x] Multi-Item Receipt Entry (Phase 4) - enter full receipts with multiple items, HST per-item tracking
-- [x] OCR Receipt Scanning (Phase 5) - Claude Vision API for receipt photo extraction
+- [x] OCR Receipt Scanning (Phase 5) - Claude Vision API for receipt photo extraction (requires Anthropic API credits)
+- [x] Square Menu Verification - fuzzy match recipes to Square catalog, flag price mismatches
 - [ ] Scenario planning ("What if...") - build calculator for pricing/volume changes
 - [ ] Monthly tracking system - lightweight system to input monthly numbers
