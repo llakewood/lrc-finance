@@ -3,12 +3,7 @@
  * Compares recipe prices against Square catalog to identify discrepancies
  */
 
-import { cn, formatCurrency, formatPercent } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
-import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
-import { Text } from '@/components/ui/text'
+import { cn, formatCurrency, formatPercent, Button, Spinner, Badge, Card, Text } from '@lrc/frontend'
 import { useMenuVerification, useRefreshMenuVerification } from '@/hooks/use-menu-verification'
 import type { MenuMatch, UnmatchedRecipe } from '@/lib/api-types'
 

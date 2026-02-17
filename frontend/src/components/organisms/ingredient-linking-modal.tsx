@@ -4,17 +4,21 @@
  */
 
 import * as React from 'react'
-import { Modal, ModalHeader, ModalTitle, ModalBody } from './modal'
-import { Text } from '@/components/ui/text'
-import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
-import { Spinner } from '@/components/ui/spinner'
-import { Badge } from '@/components/ui/badge'
-import { StatusDot } from '@/components/ui/status-dot'
+import {
+  Modal,
+  ModalHeader,
+  ModalTitle,
+  ModalBody,
+  Text,
+  Button,
+  Select,
+  Spinner,
+  Badge,
+  StatusDot,
+} from '@lrc/frontend'
 import { useIngredients } from '@/hooks/use-ingredients'
 import { useLinkIngredient } from '@/hooks/use-recipes'
 import type { UnlinkedIngredient } from '@/lib/api-types'
-import { cn } from '@/lib/utils'
 
 interface IngredientLinkingModalProps {
   open: boolean

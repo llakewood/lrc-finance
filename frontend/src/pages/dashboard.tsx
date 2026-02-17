@@ -6,21 +6,26 @@
 import { useState, useMemo } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import { DashboardLayout } from '@/components/templates/dashboard-layout'
-import { SectionLayout } from '@/components/templates/section-layout'
-import { GridLayout } from '@/components/templates/grid-layout'
-import { MetricCard } from '@/components/molecules/metric-card'
-import { YearFilter } from '@/components/molecules/year-filter'
-import { BenchmarkList } from '@/components/organisms/benchmark-list'
-import { DebtProgress } from '@/components/organisms/debt-progress'
-import { ProductMixTable } from '@/components/organisms/product-mix-table'
-import { TeamGrid } from '@/components/organisms/team-grid'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/organisms/tabs'
-import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
-import { Badge } from '@/components/ui/badge'
-import { AlertBanner } from '@/components/organisms/alert-banner'
-import { StatusDot } from '@/components/ui/status-dot'
+import {
+  DashboardLayout,
+  SectionLayout,
+  GridLayout,
+  MetricCard,
+  YearFilter,
+  BenchmarkList,
+  DebtProgress,
+  ProductMixTable,
+  TeamGrid,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Button,
+  Spinner,
+  Badge,
+  AlertBanner,
+  StatusDot,
+} from '@lrc/frontend'
 import { IngredientLinkingModal } from '@/components/organisms/ingredient-linking-modal'
 import { MenuVerification } from '@/components/organisms/menu-verification'
 
@@ -76,9 +81,7 @@ import {
   useReceiptScanStatus,
   useScanReceipt,
 } from '@/hooks/use-receipt-scanner'
-import { formatCurrency, formatPercent } from '@/lib/utils'
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { formatCurrency, formatPercent, Input, cn } from '@lrc/frontend'
 
 const queryClient = new QueryClient({
   defaultOptions: {
