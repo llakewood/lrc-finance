@@ -49,98 +49,36 @@ COMPLETED:
 
 FRONTEND (frontend/):
 
-Built with Vite + React 18 + TypeScript + Tailwind CSS v4 + Storybook 10
-
-Atomic design component library with CVA variants:
-
-Atoms (components/ui/):
-- Button (7 variants, 4 sizes)
-- Input (3 variants, 3 sizes)
-- Select (3 variants, 3 sizes)
-- Card (3 variants, 4 paddings)
-- Badge (9 variants, 3 sizes)
-- Text (6 variants, 7 sizes, 4 weights, polymorphic)
-- Tooltip (2 variants, 4 positions)
-- Spinner (4 sizes, 3 variants)
-- StatusDot (7 variants, pulse animation)
-- IconButton (4 variants, 3 sizes)
-
-Molecules (components/molecules/):
-- ContentCard (Card + Header/Title/Description/Content/Footer)
-- MetricCard (KPI display with change indicators, tooltips)
-- ProgressBar (visual progress with color variants)
-- BenchmarkBar (value vs industry range comparison)
-- ProductRow (ranked product display)
-- TeamMemberCard (avatar with initials, status)
-- DataTable (generic sortable table)
-- YearFilter (fiscal year pill selector)
-- EditableCell (inline edit/display toggle)
-
-Organisms (components/organisms/):
-- Tabs (default/pills/underline variants)
-- Modal (dialog overlay, sizes sm-full)
-- Toast (notifications with auto-dismiss)
-- MetricGrid (responsive grid of MetricCards)
-- BenchmarkList (industry comparisons)
-- DebtProgress (debt paydown tracker)
-- ProductMixTable (ranked product list)
-- TeamGrid (team member cards grid)
-- RecipeDetail (full recipe view with ingredients)
-- AlertBanner (info/warning/success/error)
-- MenuVerification (Square price verification with fuzzy matching)
-
-Templates (components/templates/):
-- DashboardLayout (main layout with header, logo, footer)
-- SectionLayout (section wrapper with title, actions)
-- GridLayout (responsive grid utility)
-
-API Integration (lib/):
-- api-types.ts - TypeScript interfaces for all API responses
-- api.ts - API client with all endpoint functions
+Built with Vite + React 19 + TypeScript + Tailwind CSS v4, consuming `@lrc/frontend` shared component library.
 
 Hooks (hooks/):
 - use-financial.ts - useFiscalYears, useSummary, useExpenseBreakdown, useBenchmarks, useDebtProgress, useMetrics, useCashFlowHealth
-- use-square.ts - useSquareStatus, useSquareSales, useSquareProductMix, useSquareTeam, useRefreshSquareData
-- use-recipes.ts - useRecipes, useRecipe, useUpdateRecipe, useUnlinkedIngredients, useLinkIngredient, useRecipeCategories
-- use-ingredients.ts - useIngredients, useUpdateIngredient, useCreateIngredient, useDeleteIngredient, useIngredientCategories
-- use-purchases.ts - usePurchases, useCreatePurchase, useUpdatePurchase, useDeletePurchase
-- use-suppliers.ts - useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier
-- use-inventory.ts - useInventory, useUpdateInventory, useLowStockItems, usePriceHistory, usePriceAlerts
-- use-menu-verification.ts - useMenuVerification, useRefreshMenuVerification
-- use-receipt-scanner.ts - useReceiptScanStatus, useScanReceipt
 
 Pages (pages/):
-- dashboard.tsx - Main dashboard with 4 tabs:
-  - Financial Overview: Key metrics, profitability, benchmarks, debt progress, expense breakdown, cash flow health
-  - Live POS Data: Square sales metrics, top sellers, team grid
-  - Recipe Costing: Recipe summary cards, sortable profitability table, recipe detail panel, Square menu verification
-  - Inventory: Master ingredients table, purchase history (with OCR scan & multi-item receipt entry), supplier management, stock levels, price alerts
+- dashboard.tsx - Financial Overview (single page, no tabs):
+  - Key metrics (revenue, net income, cash, debt)
+  - Profitability metrics (gross margin, net margin, labor cost %, rent %)
+  - Industry benchmarks comparison
+  - Debt paydown progress
+  - Expense breakdown (COGS vs G&A)
+  - Cash flow health
+
+Note: Operational features (Square POS, recipes, inventory, purchasing, receipt scanning, menu verification) have been migrated to lrc-operations.
 
 To run frontend: `cd frontend && npm run dev` → http://localhost:5173
-To run Storybook: `cd frontend && npm run storybook` → http://localhost:6006
 
 BACKEND:
 
 To run: `pip3 install -r requirements.txt && python3 run.py` → http://127.0.0.1:8000
 
 Key backend modules:
-- app/main.py - FastAPI app with all API endpoints
-- app/square_client.py - Square API client (locations, orders, catalog, team, labor)
+- app/main.py - FastAPI app with financial API endpoints
 - app/config.py - Settings & environment config
-- data/recipes.py - Recipe & ingredient data access (JSON-based)
-- data/purchasing.py - Purchase, supplier, inventory management
-- data/receipt_scanner.py - Claude Vision API receipt OCR (requires anthropic package + ANTHROPIC_API_KEY)
-- data/menu_verification.py - Fuzzy matching recipes against Square catalog for price verification
 - data/financials.py - Balance sheet & income statement data
 
+Note: Operational backend code (Square API, recipes, purchasing, receipt scanning, menu verification) has been migrated to lrc-operations.
+
 REPO: https://github.com/llakewood/lrc-finance
-
-ENVIRONMENT:
-
-Required .env variables:
-- SQUARE_ACCESS_TOKEN - Square API key for POS data
-- SQUARE_LOCATION_ID - (optional) Square location, auto-detected if not set
-- ANTHROPIC_API_KEY - For receipt OCR scanning (requires funded Anthropic API account with credits)
 
 
 PRIORITIES:
