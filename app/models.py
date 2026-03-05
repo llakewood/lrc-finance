@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import Optional
 from datetime import date
 
 
@@ -112,41 +111,3 @@ class IncomeStatementPeriod(BaseModel):
 
     total_expenses: float = 0.0
     net_income: float = 0.0
-
-
-class FinancialData(BaseModel):
-    business_name: str = "Little Red Coffee Ltd."
-    balance_sheets: list[BalanceSheetPeriod] = []
-    income_statements: list[IncomeStatementPeriod] = []
-
-
-class FinancialMetrics(BaseModel):
-    """Calculated metrics for analysis"""
-    period_label: str
-
-    # Profitability
-    gross_profit: float
-    gross_margin_pct: float
-    net_margin_pct: float
-
-    # Efficiency
-    cogs_pct: float
-    labor_cost_pct: float
-    rent_pct: float
-
-    # Liquidity
-    current_ratio: Optional[float] = None
-    cash_to_current_liabilities: Optional[float] = None
-
-    # Debt
-    debt_to_equity: Optional[float] = None
-    total_debt: float = 0.0
-
-
-class IndustryBenchmark(BaseModel):
-    metric: str
-    your_value: float
-    industry_avg: float
-    industry_range_low: float
-    industry_range_high: float
-    status: str  # "good", "warning", "concern"

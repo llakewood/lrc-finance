@@ -17,12 +17,7 @@ import sys
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.models import (
-    BalanceSheetPeriod,
-    IncomeStatementPeriod,
-    FinancialMetrics,
-    IndustryBenchmark,
-)
+from app.models import BalanceSheetPeriod, IncomeStatementPeriod
 from data.financials import BALANCE_SHEETS, INCOME_STATEMENTS, INDUSTRY_BENCHMARKS
 
 
@@ -114,6 +109,19 @@ def get_period_by_year(statements: list, year_label: str) -> dict | None:
     return None
 
 
+def resolve_period(statements: list, year: str | None) -> tuple[dict, int]:
+    """Resolve a fiscal year label to a statement and its index.
+
+    Returns (statement, index). Raises HTTPException if year not found.
+    """
+    if year:
+        current = get_period_by_year(statements, year)
+        if not current:
+            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
+        return current, statements.index(current)
+    return statements[0], 0
+
+
 def get_available_fiscal_years() -> list[dict]:
     """Get list of available fiscal years from data"""
     years = []
@@ -150,18 +158,8 @@ async def get_summary(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
     """Get high-level financial summary"""
-    # Find the requested year or default to most recent
-    if year:
-        current_income = get_period_by_year(INCOME_STATEMENTS, year)
-        current_balance = get_period_by_year(BALANCE_SHEETS, year)
-        if not current_income or not current_balance:
-            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
-        # Find the index to get previous year
-        current_idx = INCOME_STATEMENTS.index(current_income)
-    else:
-        current_income = INCOME_STATEMENTS[0]
-        current_balance = BALANCE_SHEETS[0]
-        current_idx = 0
+    current_income, current_idx = resolve_period(INCOME_STATEMENTS, year)
+    current_balance = BALANCE_SHEETS[current_idx] if current_idx < len(BALANCE_SHEETS) else None
 
     # Get previous year for comparison (if available)
     previous_idx = current_idx + 1
@@ -245,10 +243,8 @@ async def get_metrics(
 ):
     """Get calculated financial metrics for a specific or all periods"""
     if year:
-        income = get_period_by_year(INCOME_STATEMENTS, year)
-        balance = get_period_by_year(BALANCE_SHEETS, year)
-        if not income:
-            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
+        income, idx = resolve_period(INCOME_STATEMENTS, year)
+        balance = BALANCE_SHEETS[idx] if idx < len(BALANCE_SHEETS) else None
         metrics = calculate_metrics(income, balance)
         metrics["period_label"] = get_fiscal_year_label(income["period_end"])
         return {"periods": [metrics]}
@@ -267,14 +263,7 @@ async def get_expense_breakdown(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
     """Get detailed expense breakdown"""
-    if year:
-        current = get_period_by_year(INCOME_STATEMENTS, year)
-        if not current:
-            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
-        current_idx = INCOME_STATEMENTS.index(current)
-    else:
-        current = INCOME_STATEMENTS[0]
-        current_idx = 0
+    current, current_idx = resolve_period(INCOME_STATEMENTS, year)
 
     previous_idx = current_idx + 1
     has_previous = previous_idx < len(INCOME_STATEMENTS)
@@ -335,14 +324,8 @@ async def get_benchmarks(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
     """Compare your metrics against industry benchmarks"""
-    if year:
-        current_income = get_period_by_year(INCOME_STATEMENTS, year)
-        current_balance = get_period_by_year(BALANCE_SHEETS, year)
-        if not current_income:
-            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
-    else:
-        current_income = INCOME_STATEMENTS[0]
-        current_balance = BALANCE_SHEETS[0]
+    current_income, idx = resolve_period(INCOME_STATEMENTS, year)
+    current_balance = BALANCE_SHEETS[idx] if idx < len(BALANCE_SHEETS) else None
 
     metrics = calculate_metrics(current_income, current_balance)
 
@@ -380,14 +363,7 @@ async def get_debt_progress(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
     """Track debt paydown progress"""
-    if year:
-        current = get_period_by_year(BALANCE_SHEETS, year)
-        if not current:
-            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
-        current_idx = BALANCE_SHEETS.index(current)
-    else:
-        current = BALANCE_SHEETS[0]
-        current_idx = 0
+    current, current_idx = resolve_period(BALANCE_SHEETS, year)
 
     previous_idx = current_idx + 1
     has_previous = previous_idx < len(BALANCE_SHEETS)
@@ -434,16 +410,8 @@ async def get_cash_flow_health(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
     """Analyze cash flow and liquidity"""
-    if year:
-        current_balance = get_period_by_year(BALANCE_SHEETS, year)
-        current_income = get_period_by_year(INCOME_STATEMENTS, year)
-        if not current_balance or not current_income:
-            raise HTTPException(status_code=404, detail=f"Fiscal year {year} not found")
-        current_idx = BALANCE_SHEETS.index(current_balance)
-    else:
-        current_balance = BALANCE_SHEETS[0]
-        current_income = INCOME_STATEMENTS[0]
-        current_idx = 0
+    current_balance, current_idx = resolve_period(BALANCE_SHEETS, year)
+    current_income = INCOME_STATEMENTS[current_idx] if current_idx < len(INCOME_STATEMENTS) else None
 
     previous_idx = current_idx + 1
     has_previous = previous_idx < len(BALANCE_SHEETS)
