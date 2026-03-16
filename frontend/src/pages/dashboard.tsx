@@ -86,7 +86,19 @@ function DashboardContent() {
   }, [debtProgress])
 
   return (
-    <DashboardLayout>
+    <DashboardLayout
+      headerActions={
+        !yearsLoading && years.length > 0 ? (
+          <YearFilter
+            options={years}
+            value={selectedYear ?? years.find((y) => y.current)?.value}
+            onValueChange={setSelectedYear}
+            context="header"
+            label="Fiscal Year"
+          />
+        ) : undefined
+      }
+    >
       <div className="space-y-6">
         {/* Error Alert */}
         {summaryError && (
@@ -98,14 +110,6 @@ function DashboardContent() {
         )}
 
         <div className="space-y-8">
-          {/* Year Filter */}
-          {!yearsLoading && years.length > 0 && (
-            <YearFilter
-              options={years}
-              value={selectedYear ?? years.find((y) => y.current)?.value}
-              onValueChange={setSelectedYear}
-            />
-          )}
 
           {isLoading ? (
             <div className="flex items-center justify-center py-12">

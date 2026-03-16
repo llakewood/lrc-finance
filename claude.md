@@ -55,7 +55,8 @@ Hooks (hooks/):
 - use-financial.ts - useFiscalYears, useSummary, useExpenseBreakdown, useBenchmarks, useDebtProgress, useMetrics, useCashFlowHealth
 
 Pages (pages/):
-- dashboard.tsx - Financial Overview (single page, no tabs):
+- dashboard.tsx - Financial Overview (single page, no router):
+  - Fiscal year filter pills in header nav (via `headerActions` + `context="header"`)
   - Key metrics (revenue, net income, cash, debt)
   - Profitability metrics (gross margin, net margin, labor cost %, rent %)
   - Industry benchmarks comparison
