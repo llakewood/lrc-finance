@@ -24,7 +24,7 @@ from data.financials import BALANCE_SHEETS, INCOME_STATEMENTS, INDUSTRY_BENCHMAR
 app = FastAPI(
     title="Little Red Coffee - Financial Dashboard",
     description="Financial analysis and insights for Little Red Coffee Ltd.",
-    version="0.1.0",
+    version="1.0.0",
 )
 
 # Mount static files and templates
@@ -33,9 +33,9 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
-@app.get("/api/health")
+@app.get("/api/health", tags=["Health"])
 async def health():
-    return {"status": "healthy", "service": "lrc-finance", "version": "0.1.0"}
+    return {"status": "healthy", "service": "lrc-finance", "version": "1.0.0"}
 
 
 def calculate_metrics(income: dict, balance: dict | None = None) -> dict:
@@ -152,13 +152,13 @@ async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
-@app.get("/api/fiscal-years")
+@app.get("/api/fiscal-years", tags=["Financial Summary"])
 async def get_fiscal_years():
     """Get available fiscal years for filtering"""
     return {"fiscal_years": get_available_fiscal_years()}
 
 
-@app.get("/api/summary")
+@app.get("/api/summary", tags=["Financial Summary"])
 async def get_summary(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
@@ -211,7 +211,7 @@ async def get_summary(
     }
 
 
-@app.get("/api/income-statements")
+@app.get("/api/income-statements", tags=["Statements"])
 async def get_income_statements():
     """Get all income statement data"""
     return {
@@ -227,7 +227,7 @@ async def get_income_statements():
     }
 
 
-@app.get("/api/balance-sheets")
+@app.get("/api/balance-sheets", tags=["Statements"])
 async def get_balance_sheets():
     """Get all balance sheet data"""
     return {
@@ -242,7 +242,7 @@ async def get_balance_sheets():
     }
 
 
-@app.get("/api/metrics")
+@app.get("/api/metrics", tags=["Metrics & Benchmarks"])
 async def get_metrics(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
@@ -263,7 +263,7 @@ async def get_metrics(
     return {"periods": results}
 
 
-@app.get("/api/expense-breakdown")
+@app.get("/api/expense-breakdown", tags=["Metrics & Benchmarks"])
 async def get_expense_breakdown(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
@@ -324,7 +324,7 @@ async def get_expense_breakdown(
     return result
 
 
-@app.get("/api/benchmarks")
+@app.get("/api/benchmarks", tags=["Metrics & Benchmarks"])
 async def get_benchmarks(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
@@ -363,7 +363,7 @@ async def get_benchmarks(
     return {"benchmarks": benchmarks}
 
 
-@app.get("/api/debt-progress")
+@app.get("/api/debt-progress", tags=["Debt & Cash Flow"])
 async def get_debt_progress(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
@@ -410,7 +410,7 @@ async def get_debt_progress(
     }
 
 
-@app.get("/api/cash-flow-health")
+@app.get("/api/cash-flow-health", tags=["Debt & Cash Flow"])
 async def get_cash_flow_health(
     year: str = Query(default=None, description="Fiscal year label (e.g., FY24-25)")
 ):
