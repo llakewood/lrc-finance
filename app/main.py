@@ -33,6 +33,11 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
+@app.get("/api/health")
+async def health():
+    return {"status": "healthy", "service": "lrc-finance", "version": "0.1.0"}
+
+
 def calculate_metrics(income: dict, balance: dict | None = None) -> dict:
     """Calculate financial metrics from raw data"""
     revenue = income["total_revenue"]
