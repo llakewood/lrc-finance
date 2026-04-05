@@ -73,7 +73,7 @@ BACKEND:
 To run: `pip3 install -r requirements.txt && python3 run.py` → http://127.0.0.1:8000
 
 Key backend modules:
-- app/main.py - FastAPI app with financial API endpoints
+- app/main.py - FastAPI app with financial API endpoints (includes `/api/health`)
 - app/config.py - Settings & environment config
 - data/financials.py - Balance sheet & income statement data
 
