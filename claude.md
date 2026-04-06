@@ -49,7 +49,7 @@ COMPLETED:
 
 FRONTEND (frontend/):
 
-Built with Vite + React 19 + TypeScript + Tailwind CSS v4, consuming `@lrc/frontend` shared component library.
+Built with Vite + React 19 + TypeScript + Tailwind CSS v4, consuming `@llakewood/varco-frontend` shared component library.
 
 Hooks (hooks/):
 - use-financial.ts - useFiscalYears, useSummary, useExpenseBreakdown, useBenchmarks, useDebtProgress, useMetrics, useCashFlowHealth

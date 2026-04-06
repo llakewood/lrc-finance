@@ -16,7 +16,7 @@ import {
   DebtProgress,
   Spinner,
   AlertBanner,
-} from '@lrc/frontend'
+} from '@llakewood/varco-frontend'
 
 import {
   useFiscalYears,
@@ -27,7 +27,7 @@ import {
   useMetrics,
   useCashFlowHealth,
 } from '@/hooks/use-financial'
-import { formatCurrency, formatPercent } from '@lrc/frontend'
+import { formatCurrency, formatPercent } from '@llakewood/varco-frontend'
 
 const queryClient = new QueryClient({
   defaultOptions: {
